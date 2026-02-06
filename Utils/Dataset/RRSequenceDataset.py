@@ -2,72 +2,105 @@ from torch.utils.data import Dataset
 import torch
 import numpy as np
 from Configs import WINDOW_SIZE, STRIDE, HORIZONS, SEQUENCE_LENGTH
+from Metadata import DatasetMetadata, FeatureType
+from Utils.Loader.FileLoader import FileLoader
+from typing import Generator
+from Utils.FeatureExtractor.HRVMetrics.NonLinear import SampleEntropy, ApproximateEntropy
+from Utils.FeatureExtractor.HRVMetrics.ConventionalFeatures import RMSSD,LFHF, EctopicPercentage
+from Utils.FeatureExtractor.HRVMetrics.FractalMeasures import Alpha1
 
 class RRSequenceDataset(Dataset):
-    def __init__(self, rr_sequences, window_size=WINDOW_SIZE, stride=STRIDE, horizons=HORIZONS, seq_len=SEQUENCE_LENGTH):
 
-        self.window_size = window_size
-        self.stride = stride
-        self.horizons = horizons
-        self.seq_len = seq_len
-        self.samples = []
+    def load_rr_sequences(self)-> Generator[np.ndarray, None, None]:
+        file_loader = FileLoader(self.metadata.file_loader)
+        return file_loader.load()
+    
+    def load_feature_extractors(self):
+        feature_extractors = []
+        for feature_type, params in self.metadata.feature_types:
+            if feature_type == FeatureType.SampleEntropy:
+                extractor = SampleEntropy(**params)
+            elif feature_type == FeatureType.ApproximateEntropy:
+                extractor = ApproximateEntropy(**params)
+            elif feature_type == FeatureType.RMSSD:
+                extractor = RMSSD(**params)
+            elif feature_type == FeatureType.LFHF:
+                extractor = LFHF(**params)
+            elif feature_type == FeatureType.EctopicPercentage:
+                extractor = EctopicPercentage(**params)
+            elif feature_type == FeatureType.Alpha1:
+                extractor = Alpha1(**params)
+            else:
+                raise ValueError(f"Unsupported feature type: {feature_type}")
+            feature_extractors.append(extractor)
+        return feature_extractors
+    
+    def calculate_features(self, rr_window):
+        features = []
+        for extractor in self.feature_extractors:
+            feature_value = extractor.compute(rr_window)
+            features.append(feature_value)
+        return features
+    
+    def prepare_samples(self):
 
-        history_len = window_size + stride * (seq_len - 1)
-        future_len = window_size + stride * (max(horizons) - 1)
-
+        history_len = self.window_size + self.stride * (self.seq_len - 1)
+        future_len = self.window_size + self.stride * (max(self.horizons) - 1)
         total_len_needed = history_len + future_len
 
-        for rr_seq in rr_sequences:
-            rr_seq = np.asarray(rr_seq, dtype=np.float32)
-            seq_total_len = len(rr_seq)
-
-            total_windows = (seq_total_len - window_size) // stride + 1
-
+        for record, qrs in self.load_rr_sequences():
+            print(f"Processing record: {record.record_name}")
+            print(f"Len of processed samples so far: {len(self.samples)}")
+            if record is None or qrs is None:
+                continue
+            rr_intervals = np.diff(qrs.sample)
+            seq_len = len(rr_intervals)
+            if seq_len < total_len_needed:
+                continue
+            total_windows = (seq_len - self.window_size) // self.stride + 1
             for i in range(total_windows):
-                start_idx = i * stride
+                start_idx = i * self.stride
                 end_idx = start_idx + total_len_needed
-                if end_idx > seq_total_len:
+                if end_idx > seq_len:
                     break
-
-                rr_subseq = rr_seq[start_idx:end_idx]
-
-                # -------- INPUT WINDOWS (T=10, W=50) --------
+                rr_seq = rr_intervals[start_idx:end_idx]
+                
+                # Input windows
                 rr_windows = []
                 for j in range(self.seq_len):
-                    w_start = j * stride
-                    w_end = w_start + window_size
-                    rr_windows.append(rr_subseq[w_start:w_end])
+                    w_start = j * self.stride
+                    w_end = w_start + self.window_size
+                    rr_windows.append(rr_seq[w_start:w_end])
 
                 rr_windows = np.stack(rr_windows)  # (seq_len, window_size)
-                # -------- HRV TARGETS --------
 
+                # Feature targets
                 hrvs = []
-                for horizon in horizons:
-                    t_start = (self.seq_len - 1 + horizon) * stride
-                    t_end = t_start + window_size
-                    rr_target = rr_subseq[t_start:t_end]
-                    hrv_target = self.compute_hrv_metrics(rr_target)
+                for horizon in self.horizons:
+                    t_start = (self.seq_len - 1 + horizon) * self.stride
+                    t_end = t_start + self.window_size
+                    rr_target = rr_seq[t_start:t_end]
+                    hrv_target = self.calculate_features(rr_target)
                     hrvs.append(hrv_target)
-
-                hrvs = np.stack(hrvs)  # (len(horizons),Number of HRV metrics)
+                hrvs = np.stack(hrvs)  # (len(horizons), Number of HRV metrics)
 
                 self.samples.append((rr_windows, hrvs))
 
-    def compute_hrv_metrics(self, rr_window):
-        rr_diff = np.diff(rr_window)
-        rmssd = np.sqrt(np.mean(rr_diff ** 2)) if len(rr_diff) else 0.0
-        sdnn = np.std(rr_window)
-        sd1 = np.std(rr_diff) / np.sqrt(2) if len(rr_diff) else 0.0
-        sd2_val = 2 * sdnn ** 2 - sd1 ** 2
-        sd2 = np.sqrt(sd2_val) if sd2_val > 0 else 0.0
+    def __init__(self, metadata: DatasetMetadata):
+        self.metadata = metadata
+        self.window_size = metadata.rr_sequence.window_size
+        self.stride = metadata.rr_sequence.stride
+        self.horizons = metadata.rr_sequence.horizons
+        self.seq_len = metadata.rr_sequence.seq_len
+        self.samples = []
 
-        hrv = np.array([rmssd, sdnn, sd1, sd2], dtype=np.float32)
-        return np.log1p(hrv)
+        self.feature_extractors = self.load_feature_extractors()
+        self.prepare_samples()
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
         rr_windows, hrvs = self.samples[idx]
-        current_hrv = self.compute_hrv_metrics(rr_windows[-1])
+        current_hrv = self.calculate_features(rr_windows[-1])
         return torch.tensor(rr_windows, dtype=torch.float32), torch.tensor(hrvs, dtype=torch.float32), torch.tensor(current_hrv, dtype=torch.float32)
