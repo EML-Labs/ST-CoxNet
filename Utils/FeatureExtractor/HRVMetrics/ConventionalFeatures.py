@@ -52,6 +52,6 @@ class EctopicPercentage:
         upper_bound = 1.2 * mean_rr
         
         ectopic_count = np.sum((rr_window < lower_bound) | (rr_window > upper_bound))
-        percentage = (ectopic_count / len(rr_window)) * 100
+        percentage = (ectopic_count / len(rr_window))
         
         return percentage

@@ -1,9 +1,11 @@
 from pydantic import BaseModel
 from enum import IntEnum
-from typing import List,Tuple
+from typing import List,Tuple,Optional
 
 class FileLoaderMetadata(BaseModel):
     file_path: str
+    sample_needed: bool = False
+    file_names : Optional[List[str]] = None
 
 class RRSequenceMetadata(BaseModel):
     window_size: int
@@ -21,6 +23,7 @@ class FeatureType(IntEnum):
 
 class DatasetMetadata(BaseModel):
     name: str
+    sampling_frequency: int
     file_loader: FileLoaderMetadata
     rr_sequence: RRSequenceMetadata
     feature_types: List[Tuple[FeatureType, dict]]  # List of (FeatureType, parameters) tuples

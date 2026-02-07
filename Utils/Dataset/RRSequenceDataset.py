@@ -9,7 +9,6 @@ from Utils.FeatureExtractor.HRVMetrics.ConventionalFeatures import RMSSD,LFHF, E
 from Utils.FeatureExtractor.HRVMetrics.FractalMeasures import Alpha1
 
 class RRSequenceDataset(Dataset):
-    
     def create_index(self):
         self.index = []
         history_len = self.window_size + self.stride * (self.seq_len - 1)
@@ -96,7 +95,7 @@ class RRSequenceDataset(Dataset):
         for _, qrs in file_loader.load():
             if qrs is None:
                 continue
-            rr = np.diff(qrs.sample)
+            rr = np.diff(qrs.sample)/self.metadata.sampling_frequency
             self.rr_records.append(rr)
 
         self.create_index()
