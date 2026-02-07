@@ -3,14 +3,14 @@ import torch
 from Model.AutoregressiveBlock import ARBlock
 from Model.PredictionHead.HRVPredictor.MultiStepPredictor import MultiStepHRVPredictor
 from Model.Encoder.RREncoder import Encoder
-from Configs import LATENT_SIZE, CONTEXT_SIZE, NUMBER_OF_TARGETS_FOR_PREDICTION
+from Configs import LATENT_SIZE, CONTEXT_SIZE, NUMBER_OF_TARGETS_FOR_PREDICTION,NUMBER_OF_PREDICTORS
 
 class CPCPreModel(nn.Module):
-    def __init__(self, num_targets=NUMBER_OF_TARGETS_FOR_PREDICTION):
+    def __init__(self, num_targets=NUMBER_OF_TARGETS_FOR_PREDICTION,num_predictors=NUMBER_OF_PREDICTORS):
         super().__init__()
         self.encoder = Encoder(latent_dim=LATENT_SIZE)
         self.context = ARBlock(latent_dim=LATENT_SIZE, context_dim=CONTEXT_SIZE)
-        self.predictor = MultiStepHRVPredictor(context_dim=CONTEXT_SIZE, num_targets=num_targets)
+        self.predictor = MultiStepHRVPredictor(context_dim=CONTEXT_SIZE, num_targets=num_targets, num_heads=num_predictors)
 
     def forward(self, rr_windows: torch.Tensor) -> torch.Tensor:
         """

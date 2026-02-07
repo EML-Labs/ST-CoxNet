@@ -1,18 +1,16 @@
 import torch
-import torch.nn.functional as F
 from typing import List,Dict,Tuple
 
 
-class Trainer:
+class Validator:
     loss_weights = []
-    def __init__(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, device: torch.device,loss:torch.nn.Module,number_of_predictors:int):
+    def __init__(self, model: torch.nn.Module, device: torch.device, loss: torch.nn.Module, number_of_predictors: int):
         self.model = model
-        self.optimizer = optimizer
         self.device = device
         self.loss_weights = [1.0 for _ in range(number_of_predictors)]
         self.loss = loss
 
-    def training_step(
+    def validation_step(
         self, 
         rr_windows: torch.Tensor, 
         hrv_targets: torch.Tensor
@@ -39,30 +37,26 @@ class Trainer:
         return total_loss,tuple(losses)
     
 
-    def train_epoch(
+    def validation_epoch(
         self,
         dataloader: torch.utils.data.DataLoader
     ) -> Dict[str, float]:
-        self.model.train()
+        self.model.eval()
         total_loss = 0.0
-        lossses = [0.0 for _ in self.loss_weights]
+        losses = [0.0 for _ in self.loss_weights]
         num_batches = 0
 
         for rr_windows, hrv_targets, _ in dataloader:
             rr_windows = rr_windows.to(self.device)  # [B, T, W]
             hrv_targets = hrv_targets.to(self.device)  # [B, T, num_metrics]
 
-            self.optimizer.zero_grad()
-            loss, losses = self.training_step(rr_windows, hrv_targets)
-            loss.backward()
-            self.optimizer.step()
+            loss, batch_losses = self.validation_step(rr_windows, hrv_targets)
 
             total_loss += loss.item()
-            for idx, l in enumerate(losses):
-                lossses[idx] += l.item()
+            for idx, l in enumerate(batch_losses):
+                losses[idx] += l.item()
             num_batches += 1
 
         avg_loss = total_loss / num_batches
-        avg_losses = [l / num_batches for l in lossses]
-
+        avg_losses = [l / num_batches for l in losses]
         return avg_loss, tuple(avg_losses)
