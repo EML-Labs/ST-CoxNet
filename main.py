@@ -7,14 +7,13 @@ from train import Trainer
 from Validator import Validator
 import torch
 import random
+
 random.seed(42)
 
 number_list = range(1,51)
 validation_numbers = random.sample(number_list, 10)
 training_numbers = [n for n in number_list if n not in validation_numbers]
 
-# print("Training on records:", training_numbers)
-# print("Validating on records:", validation_numbers)
 validation_file_loader_metadata = FileLoaderMetadata(
     file_path="/Users/yasantha-mac/Downloads/paf-prediction-challenge-database-1.0.0",
     file_names=[f"p{p:02d}.dat" for p in validation_numbers],

@@ -1,0 +1,2 @@
+_target_: Metadata.EncoderConfig
+latent_dim: 32

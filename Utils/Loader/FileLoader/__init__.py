@@ -5,7 +5,7 @@ from Metadata import FileLoaderMetadata
 class FileLoader:
     sample_needed = False
     def __init__(self, metadata: FileLoaderMetadata):
-        self.file_path = metadata.file_path
+        self.file_path = metadata.path
         self.sample_needed = metadata.sample_needed
         if metadata.file_names is not None:
             self.file_names = metadata.file_names
@@ -20,7 +20,9 @@ class FileLoader:
         return len(record_files)
     
     def load_file(self, file_name):
-        record_path = os.path.join(self.file_path, file_name[:-4])  # Remove .dat extension
+        base_name, ext = os.path.splitext(file_name)
+        record_name = base_name if ext == ".dat" else file_name
+        record_path = os.path.join(self.file_path, record_name)
         try:
             record = None
             qrs = wfdb.rdann(record_path, 'qrs')

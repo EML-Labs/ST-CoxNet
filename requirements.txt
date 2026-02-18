@@ -1,3 +1,5 @@
 wandb==0.23.1
 wfdb==4.2.0
 pydantic
+omegaconf
+hydra-core

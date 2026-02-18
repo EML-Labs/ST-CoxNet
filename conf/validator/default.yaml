@@ -1,0 +1,7 @@
+loader:
+  shuffle: false
+  batch_size: 32
+  pin_memory: true
+loss:
+  name: mse
+  weights: [1.0, 1.0, 1.0]

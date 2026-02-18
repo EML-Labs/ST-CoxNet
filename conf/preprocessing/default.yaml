@@ -1,0 +1,9 @@
+rr_sequence:
+    _target_: Metadata.RRSequenceMetadata
+    window_size: 50
+    stride: 10
+    horizons: 
+        - 10
+        - 20
+        - 30
+    seq_len: 10

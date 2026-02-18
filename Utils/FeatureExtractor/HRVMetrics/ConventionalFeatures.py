@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import welch
-
-class LFHF:
+from Utils.FeatureExtractor.Base import BaseExtractor
+class LFHF(BaseExtractor):
     def __init__(self, fs=4.0):
         self.fs = fs
 
@@ -22,7 +22,7 @@ class LFHF:
         return lf_power / hf_power if hf_power > 0 else 0.0
 
 
-class RMSSD:
+class RMSSD(BaseExtractor):
     def compute(self, rr_window) -> float:
         """
         Calculates the Root Mean Square of Successive Differences (RMSSD).
@@ -32,7 +32,7 @@ class RMSSD:
         return np.sqrt(np.mean(rr_diff ** 2)) if len(rr_diff) else 0.0
 
 
-class EctopicPercentage:
+class EctopicPercentage(BaseExtractor):
     def compute(self, rr_window) -> float:
         """
         Calculates the percentage of ectopic beats.
@@ -52,6 +52,6 @@ class EctopicPercentage:
         upper_bound = 1.2 * mean_rr
         
         ectopic_count = np.sum((rr_window < lower_bound) | (rr_window > upper_bound))
-        percentage = (ectopic_count / len(rr_window))
+        percentage = (ectopic_count / len(rr_window)) if len(rr_window) > 0 else 0.0
         
         return percentage
