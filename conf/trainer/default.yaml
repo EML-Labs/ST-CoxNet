@@ -1,0 +1,11 @@
+epochs: 100
+loader:
+  shuffle: true
+  batch_size: 32
+  pin_memory: true
+  num_workers: 4
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 0.001
+loss:
+  _target_: torch.nn.MSELoss

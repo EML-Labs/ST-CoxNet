@@ -1,0 +1,9 @@
+defaults:
+  - ar@config.ar: gru
+  - encoder@config.encoder: cnn
+  - predictor@config.predictor: single_layer_predictor
+
+
+_target_: Model.CPCPreModel.CPCPreModel
+config:
+  _target_: Metadata.CPCPreModelConfig

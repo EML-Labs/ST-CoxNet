@@ -6,3 +6,5 @@ pyvenv.cfg
 *.pyc
 __pycache__/
 share/
+outputs/
+logs/

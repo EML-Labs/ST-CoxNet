@@ -1,0 +1,134 @@
+dataset:
+  file_loader:
+    _target_: Metadata.FileLoaderMetadata
+    name: PAF Dataset
+    path: /Users/yasantha-mac/Downloads/paf-prediction-challenge-database-1.0.0
+    sampling_rate: 128
+    file_names:
+    - p01
+    - p02
+    - p03
+    - p04
+    - p05
+    - p06
+    - p07
+    - p08
+    - p09
+    - p10
+    - p11
+    - p12
+    - p13
+    - p14
+    - p15
+    - p16
+    - p17
+    - p18
+    - p19
+    - p20
+    - p21
+    - p22
+    - p23
+    - p24
+    - p25
+    - p26
+    - p27
+    - p28
+    - p29
+    - p30
+    - p31
+    - p32
+    - p33
+    - p34
+    - p35
+    - p36
+    - p37
+    - p38
+    - p39
+    - p40
+    - p41
+    - p42
+    - p43
+    - p44
+    - p45
+    - p46
+    - p47
+    - p48
+    - p49
+    - p50
+  rr_sequence:
+    _target_: Metadata.RRSequenceMetadata
+    window_size: 50
+    stride: 10
+    horizons:
+    - 10
+    - 20
+    - 30
+    seq_len: 10
+  feature_extractors:
+  - sample_entropy:
+      _target_: Utils.FeatureExtractor.HRVMetrics.NonLinear.SampleEntropy
+      m: 2
+      r: 0.2
+  - approximate_entropy:
+      _target_: Utils.FeatureExtractor.HRVMetrics.NonLinear.ApproximateEntropy
+      m: 2
+      r: 0.2
+  - rmssd:
+      _target_: Utils.FeatureExtractor.HRVMetrics.ConventionalFeatures.RMSSD
+  - lfhf:
+      _target_: Utils.FeatureExtractor.HRVMetrics.ConventionalFeatures.LFHF
+  - ectopic_percentage:
+      _target_: Utils.FeatureExtractor.HRVMetrics.ConventionalFeatures.EctopicPercentage
+  - alpha1:
+      _target_: Utils.FeatureExtractor.HRVMetrics.FractalMeasures.Alpha1
+  _target_: Utils.Dataset.RRSequenceDataset.RRSequenceDataset
+  sampling_rate: 128
+model:
+  ar:
+    name: gru
+    context_dim: 64
+    latent_dim: 32
+  encoder:
+    name: cnn
+    latent_dim: 32
+  predictor:
+    context_dim: 64
+    num_targets: 4
+    num_heads: 3
+trainer:
+  epochs: 100
+  loader:
+    shuffle: true
+    batch_size: 32
+    pin_memory: true
+  optimizer:
+    name: adamW
+    lr: 0.001
+  loss:
+    name: mse
+    weights:
+    - 1.0
+    - 1.0
+    - 1.0
+validator:
+  loader:
+    shuffle: false
+    batch_size: 32
+    pin_memory: true
+  loss:
+    name: mse
+    weights:
+    - 1.0
+    - 1.0
+    - 1.0
+tester:
+  loader:
+    shuffle: false
+    batch_size: 32
+    pin_memory: true
+  loss:
+    name: mse
+    weights:
+    - 1.0
+    - 1.0
+    - 1.0
