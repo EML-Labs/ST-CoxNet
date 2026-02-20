@@ -8,3 +8,5 @@ __pycache__/
 share/
 outputs/
 logs/
+*.env
+wandb/

@@ -7,13 +7,16 @@ defaults:
   - tester: default
   - preprocessing: default
   - feature_extractors: default
+  
 
 seed: 42
 split:
   train: 0.7
   val: 0.1
   test: 0.2
-# device: cuda
+device:
+  _target_: Device.Device
+  device: "cuda"  # or "cpu"
 
 # model:
 #   - _target_: Model.CPCPreModel.CPCPreModel

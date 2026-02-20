@@ -6,11 +6,13 @@ from Metadata import TrainerConfig
 
 class Trainer:
     loss_weights = []
-    def __init__(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, device: torch.device,loss:torch.nn.Module,number_of_predictors:int):
+    def __init__(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, device: torch.device,loss:torch.nn.Module,number_of_predictors:int,loss_weights:List[float] = None):
         self.model = model
         self.optimizer = optimizer
         self.device = device
-        self.loss_weights = [1.0 for _ in range(number_of_predictors)]
+        self.loss_weights = loss_weights if loss_weights is not None else [1.0 for _ in range(number_of_predictors)]
+        if len(self.loss_weights) != number_of_predictors:
+            raise ValueError(f"Length of loss_weights must match number_of_predictors. Got {len(self.loss_weights)} and {number_of_predictors}")
         self.loss = loss
 
     def training_step(

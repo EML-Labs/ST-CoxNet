@@ -3,3 +3,6 @@ wfdb==4.2.0
 pydantic
 omegaconf
 hydra-core
+tqdm
+python-dotenv
+torch
