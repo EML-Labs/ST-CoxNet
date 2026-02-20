@@ -43,8 +43,6 @@ class RRSequenceDataset(Dataset):
                 self.index.append((rid, start))
     
     def calculate_features(self, rr_window):
-        for name, ext in self.feature_extractors.items():
-            print(f"Calculating {name} for window: {rr_window}")
         return {
             name:ext.compute(rr_window) for name, ext in self.feature_extractors.items()
         }

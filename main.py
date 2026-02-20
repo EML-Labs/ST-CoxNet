@@ -3,7 +3,7 @@ from Utils.Loader.FileLoader import FileLoader
 from Utils.Dataset.RRSequenceDataset import RRSequenceDataset
 from torch.utils.data import DataLoader
 from Model.CPCPreModel import CPCPreModel
-from train import Trainer
+from Train import Trainer
 from Validator import Validator
 import torch
 import random
