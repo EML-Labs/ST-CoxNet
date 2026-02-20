@@ -1,22 +1,28 @@
 import hydra
-from omegaconf import DictConfig, OmegaConf
-from hydra.utils import instantiate
-from Utils.Dataset.Splitter import split
-from Metadata import SplitMetadata,FileLoaderMetadata
-from Utils.Dataset.RRSequenceDataset import RRSequenceDataset
-from torch.utils.data import DataLoader
-from Utils.Logger import get_logger
-from train import Trainer
-from dotenv import load_dotenv
 import wandb
-from tqdm import tqdm
 import torch
-import numpy as np
 import random
+import numpy as np
+
+from hydra.utils import instantiate
+from torch.utils.data import DataLoader
+from omegaconf import DictConfig, OmegaConf
+from dotenv import load_dotenv
+from tqdm import tqdm
+
+from Utils.Dataset.Splitter import split
+from Utils.Dataset.RRSequenceDataset import RRSequenceDataset
+from Utils.Logger import get_logger
+from Utils.Visualizer.RegresssionPlotter import RegressionPlotter
+
+from Metadata import SplitMetadata,FileLoaderMetadata
+
+from Train import Trainer
+from Validator import Validator
 from Device import Device
 
 
-load_dotenv()  # Load environment variables from .env file
+load_dotenv()
 
 @hydra.main(config_path="conf", config_name="conf", version_base=None)
 def main(cfg: DictConfig):
@@ -70,26 +76,32 @@ def main(cfg: DictConfig):
         device:Device = instantiate(cfg.device).device
         optimizer:torch.optim = instantiate(cfg.trainer.optimizer, params=model.parameters())
         loss_fn :torch.nn.Module = instantiate(cfg.trainer.loss)
-        trainer = Trainer(model, optimizer, device.device, loss_fn, number_of_predictors=cfg.model.config.predictor.num_heads, loss_weights=cfg.trainer.loss_weights)
+        trainer = Trainer(model, optimizer, device, loss_fn, number_of_predictors=cfg.model.config.predictor.num_heads, loss_weights=cfg.trainer.loss_weights)
+        validator = Validator(model, device, loss_fn, number_of_predictors=cfg.model.config.predictor.num_heads)
+        plotter:RegressionPlotter = instantiate(cfg.plotters)
         
         for epoch in tqdm(range(cfg.trainer.epochs), desc="Training Epochs"):
             avg_loss, avg_losses = trainer.train_epoch(train_loader)
-            logger.log({"train_loss": avg_loss, **{f"train_loss_pred_{i}": l for i, l in enumerate(avg_losses)}, "epoch": epoch+1})
-            logger.info(f"Epoch {epoch+1}, Total Train Loss: {avg_loss:.4f}")
-            tqdm.write(f"Epoch {epoch+1}, Total Train Loss: {avg_loss:.4f}")
-
+            val_avg_loss, val_avg_losses = validator.validation_epoch(val_loader)
+            plotter.update(trainer.predictions, validator.targets)
+            tqdm.set_description_str(f"Epoch {epoch+1}/{cfg.trainer.epochs} | Train Loss: {avg_loss:.4f} | Val Loss: {val_avg_loss:.4f}")
+            logger.log({"train_loss": avg_loss, **{f"train_loss_pred_{i}": l for i, l in enumerate(avg_losses)}, "val_loss": val_avg_loss, **{f"val_loss_pred_{i}": l for i, l in enumerate(val_avg_losses)}, "epoch": epoch+1})
+            logger.info(f"Epoch {epoch+1}, Total Train Loss: {avg_loss:.4f}, Total Val Loss: {val_avg_loss:.4f}")
+            fig = plotter.plot()
+            logger.log({"regression_plot": wandb.Image(fig)})
     except Exception as e:
-        torch.save(model.state_dict(), "model.pt")
-        artifact = wandb.Artifact("CPCPreModel", type="model")
-        artifact.add_file("model.pt")
-        run.log_artifact(artifact)
         logger.info("Model saved successfully")
         if logger is not None:
             logger.info(f"An error occurred: {str(e)}")
+        raise e
+    finally:
+        if model is not None:
+            torch.save(model.state_dict(), "model.pt")
+            artifact = wandb.Artifact("CPCPreModel", type="model")
+            artifact.add_file("model.pt")
+            run.log_artifact(artifact)
         if run is not None:
             run.finish()
-        raise e
 
-    # print(f"File Loader Config: {file_loader_config}")
 if __name__ == "__main__":
     main()

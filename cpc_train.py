@@ -7,7 +7,7 @@ from Model.CPCPreModel import CPCPreModel
 from Optimizer import Optimizer
 from Device import Device
 from Loss import Loss
-from train import Trainer
+from Train import Trainer
 from Validator import Validator
 import torch
 import random
