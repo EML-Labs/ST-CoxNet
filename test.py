@@ -73,18 +73,19 @@ def main(cfg: DictConfig):
         logger.info(f"Model instantiated: {model.__class__.__name__}")
 
         model.eval()
-        device:Device = instantiate(cfg.device).device
+        device:torch.device = instantiate(cfg.device).device
         optimizer:torch.optim = instantiate(cfg.trainer.optimizer, params=model.parameters())
         loss_fn :torch.nn.Module = instantiate(cfg.trainer.loss)
         trainer = Trainer(model, optimizer, device, loss_fn, number_of_predictors=cfg.model.config.predictor.num_heads, loss_weights=cfg.trainer.loss_weights)
         validator = Validator(model, device, loss_fn, number_of_predictors=cfg.model.config.predictor.num_heads)
         plotter:RegressionPlotter = instantiate(cfg.plotters)
         
-        for epoch in tqdm(range(cfg.trainer.epochs), desc="Training Epochs"):
+        pbar = tqdm(range(cfg.trainer.epochs), desc="Training Epochs")
+        for epoch in pbar:
             avg_loss, avg_losses = trainer.train_epoch(train_loader)
             val_avg_loss, val_avg_losses = validator.validation_epoch(val_loader)
-            plotter.update(trainer.predictions, validator.targets)
-            tqdm.set_description_str(f"Epoch {epoch+1}/{cfg.trainer.epochs} | Train Loss: {avg_loss:.4f} | Val Loss: {val_avg_loss:.4f}")
+            plotter.update(validator.predictions, validator.targets)
+            pbar.set_description_str(f"Epoch {epoch+1}/{cfg.trainer.epochs} | Train Loss: {avg_loss:.4f} | Val Loss: {val_avg_loss:.4f}")
             logger.log({"train_loss": avg_loss, **{f"train_loss_pred_{i}": l for i, l in enumerate(avg_losses)}, "val_loss": val_avg_loss, **{f"val_loss_pred_{i}": l for i, l in enumerate(val_avg_losses)}, "epoch": epoch+1})
             logger.info(f"Epoch {epoch+1}, Total Train Loss: {avg_loss:.4f}, Total Val Loss: {val_avg_loss:.4f}")
             fig = plotter.plot()

@@ -9,6 +9,8 @@ class Validator:
         self.device = device
         self.loss_weights = [1.0 for _ in range(number_of_predictors)]
         self.loss = loss
+        self.predictions = []
+        self.targets = []
 
     def validation_step(
         self, 
@@ -29,6 +31,8 @@ class Validator:
         total_loss = 0.0
 
         y_preds = self.model.predictor(last_context)  # Each: [B, num_metrics]
+        self.predictions.append([y.cpu().detach() for y in y_preds])
+        self.targets.append(hrv_targets.cpu().detach())
         for idx,y_pred in enumerate(y_preds):
             loss = self.loss(y_pred, hrv_targets[:, idx, :])
             losses.append(loss)
@@ -46,6 +50,8 @@ class Validator:
         losses = [0.0 for _ in self.loss_weights]
         num_batches = 0
 
+        self.predictions = []
+        self.targets = []
         for rr_windows, hrv_targets, _ in dataloader:
             rr_windows = rr_windows.to(self.device)  # [B, T, W]
             hrv_targets = hrv_targets.to(self.device)  # [B, T, num_metrics]
