@@ -3,6 +3,7 @@ import wandb
 import torch
 import random
 import numpy as np
+import os
 
 from hydra.utils import instantiate
 from torch.utils.data import DataLoader
@@ -68,16 +69,16 @@ def main(cfg: DictConfig):
         val_loader = DataLoader(val_dataset, **cfg.validator.loader)
         # test_loader = DataLoader(test_dataset, **cfg.tester.loader)
 
-        model:torch.nn.Module = instantiate(cfg.model)
+        first_stage_model:torch.nn.Module = instantiate(cfg.first_stage_model)
 
-        logger.info(f"Model instantiated: {model.__class__.__name__}")
+        logger.info(f"Model instantiated: {first_stage_model.__class__.__name__}")
 
-        model.eval()
+        first_stage_model.eval()
         device:torch.device = instantiate(cfg.device).device
-        optimizer:torch.optim = instantiate(cfg.trainer.optimizer, params=model.parameters())
+        optimizer:torch.optim = instantiate(cfg.trainer.optimizer, params=first_stage_model.parameters())
         loss_fn :torch.nn.Module = instantiate(cfg.trainer.loss)
-        trainer = Trainer(model, optimizer, device, loss_fn, number_of_predictors=cfg.model.config.predictor.num_heads, loss_weights=cfg.trainer.loss_weights)
-        validator = Validator(model, device, loss_fn, number_of_predictors=cfg.model.config.predictor.num_heads)
+        trainer = Trainer(first_stage_model, optimizer, device, loss_fn, number_of_predictors=cfg.first_stage_model.config.predictor.num_heads, loss_weights=cfg.trainer.loss_weights)
+        validator = Validator(first_stage_model, device, loss_fn, number_of_predictors=cfg.first_stage_model.config.predictor.num_heads)
         plotter:RegressionPlotter = instantiate(cfg.plotters)
         
         pbar = tqdm(range(cfg.trainer.epochs), desc="Training Epochs")
@@ -96,10 +97,11 @@ def main(cfg: DictConfig):
             logger.info(f"An error occurred: {str(e)}")
         raise e
     finally:
-        if model is not None:
-            torch.save(model.state_dict(), "model.pt")
+        if first_stage_model is not None:
+            torch.save(first_stage_model.state_dict(), "first_stage_model.pt")
             artifact = wandb.Artifact("CPCPreModel", type="model")
-            artifact.add_file("model.pt")
+            file_path = os.path.join(os.getcwd(), "first_stage_model.pt")
+            artifact.add_file(file_path)
             run.log_artifact(artifact)
         if run is not None:
             run.finish()
