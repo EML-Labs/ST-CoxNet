@@ -6,7 +6,7 @@ from Metadata import SplitMetadata,FileLoaderMetadata
 from Utils.Dataset.RRSequenceDataset import RRSequenceDataset
 from torch.utils.data import DataLoader
 from Utils.Logger import get_logger
-from Train import Trainer
+from train import Trainer
 from dotenv import load_dotenv
 import wandb
 from tqdm import tqdm
