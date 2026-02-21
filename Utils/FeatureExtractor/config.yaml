@@ -1,0 +1,198 @@
+rqa_params:
+  m: 3
+  tau: 1
+  rr_percent: 0.03
+  l_min: 2
+  v_min: 2
+
+features:
+
+  # ── Time Domain ───────────────────────────────────────────────────────────────
+  time_domain:
+    # NN interval statistics
+    HRV_MeanNN: 1
+    HRV_SDNN: 1
+    HRV_SDANN1: 1       # requires ≥ 3 min signal
+    HRV_SDNNI1: 1
+    HRV_SDANN2: 0       # requires ≥ 6 min signal
+    HRV_SDNNI2: 0
+    HRV_SDANN5: 0       # requires ≥ 15 min signal
+    HRV_SDNNI5: 0
+    HRV_MedianNN: 1
+    HRV_MadNN: 1
+    HRV_IQRNN: 1
+    HRV_Prc20NN: 1
+    HRV_Prc80NN: 1
+    HRV_MinNN: 1
+    HRV_MaxNN: 1
+
+    # Successive difference metrics
+    HRV_RMSSD: 1
+    HRV_SDSD: 1
+    HRV_pNN50: 1
+    HRV_pNN20: 1
+    NN50: 1             # raw count, not percentage
+    pNN31: 1
+
+    # Normalised / ratio metrics
+    HRV_CVNN: 1
+    HRV_CVSD: 1
+    HRV_MCVNN: 1
+    HRV_SDRMSSD: 1
+
+    # Geometric metrics
+    HRV_HTI: 1
+    HRV_TINN: 1
+
+    # Heart rate statistics (derived from RRI)
+    Mean_HR: 1
+    SD_HR: 1
+    Min_HR: 1
+    Max_HR: 1
+
+  # ── Frequency Domain ─────────────────────────────────────────────────────────
+  frequency_domain:
+    HRV_ULF: 0
+    HRV_VLF: 1
+    HRV_LF: 1
+    HRV_HF: 1
+    HRV_VHF: 1
+    HRV_TP: 1
+    HRV_LFHF: 1
+    HRV_LFn: 1
+    HRV_HFn: 1
+    HRV_LnHF: 1
+
+  # ── Nonlinear Domain ─────────────────────────────────────────────────────────
+  nonlinear:
+    # Poincare plot
+    HRV_SD1: 1
+    HRV_SD2: 1
+    HRV_SD1SD2: 1
+    HRV_S: 1
+    HRV_CSI: 1
+    HRV_CVI: 1
+    HRV_CSI_Modified: 1
+
+    # Asymmetry indices (Porta / Guzik)
+    HRV_GI: 0
+    HRV_SI: 0
+    HRV_AI: 0
+    HRV_PI: 0
+    HRV_PIP: 0
+    HRV_IALS: 0
+    HRV_PSS: 0
+    HRV_PAS: 0
+
+    # Short-term Poincare asymmetry (SD1 decomposition)
+    HRV_C1d: 1
+    HRV_C1a: 1
+    HRV_SD1d: 1
+    HRV_SD1a: 1
+
+    # Long-term Poincare asymmetry (SD2 decomposition)
+    HRV_C2d: 1
+    HRV_C2a: 1
+    HRV_SD2d: 1
+    HRV_SD2a: 1
+
+    # Overall Poincare asymmetry (SDNN decomposition)
+    HRV_Cd: 1
+    HRV_Ca: 1
+    HRV_SDNNd: 1
+    HRV_SDNNa: 1
+
+    # Detrended Fluctuation Analysis
+    HRV_DFA_alpha1: 1
+    HRV_DFA_alpha2: 1
+
+    # Multifractal DFA - alpha1 scale
+    HRV_MFDFA_alpha1_Width: 1
+    HRV_MFDFA_alpha1_Peak: 1
+    HRV_MFDFA_alpha1_Mean: 1
+    HRV_MFDFA_alpha1_Max: 1
+    HRV_MFDFA_alpha1_Delta: 1
+    HRV_MFDFA_alpha1_Asymmetry: 1
+    HRV_MFDFA_alpha1_Fluctuation: 1
+    HRV_MFDFA_alpha1_Increment: 1
+
+    # Multifractal DFA - alpha2 scale
+    HRV_MFDFA_alpha2_Width: 1
+    HRV_MFDFA_alpha2_Peak: 1
+    HRV_MFDFA_alpha2_Mean: 1
+    HRV_MFDFA_alpha2_Max: 1
+    HRV_MFDFA_alpha2_Delta: 1
+    HRV_MFDFA_alpha2_Asymmetry: 1
+    HRV_MFDFA_alpha2_Fluctuation: 1
+    HRV_MFDFA_alpha2_Increment: 1
+
+    # Entropy metrics
+    HRV_ApEn: 1
+    HRV_SampEn: 1
+    HRV_ShanEn: 1
+    HRV_FuzzyEn: 1
+    HRV_MSEn: 1
+    HRV_CMSEn: 1
+    HRV_RCMSEn: 1
+
+    # Fractal / complexity metrics
+    HRV_CD: 1
+    HRV_HFD: 1
+    HRV_KFD: 1
+    HRV_LZC: 1
+
+    # Information-theoretic metrics on RRI distribution
+    RENYIEN: 1
+    TSALLISEN: 1
+
+  # ── RQA - Custom Implementation ───────────────────────────────────────────────
+  rqa:
+    # Eigenvalue-based (phase-space covariance)
+    NME: 1              # normalised maximum eigenvalue
+    EEV: 1              # eigenvalue entropy
+
+    # Diagonal line features
+    RecurrenceRate_RRFixed: 1
+    Determinism_RRFixed: 1
+    L_RRFixed: 1        # mean diagonal line length
+    LMax_RRFixed: 1
+    LMedian_RRFixed: 1
+    LEn_RRFixed: 1      # diagonal line length entropy
+    Divergence_RRFixed: 1   # 1/Lmax - proxy for Lyapunov exponent
+    Ratio_RRFixed: 1    # DET / RR
+    LMinCount_RRFixed: 1
+
+    # Vertical line features
+    Laminarity_RRFixed: 1
+    TrappingTime_RRFixed: 1
+    VMaX_RRFixed: 1
+    VEn_RRFixed: 1      # vertical line length entropy
+
+    # White vertical line features (recurrence time)
+    W_RRFixed: 1        # mean white vertical line length
+    WMax_RRFixed: 1
+
+    # Advanced
+    K2: 1               # Renyi entropy K2 from linear regression on Pc(l)
+
+  # ── RQA - NeuroKit2 Implementation ───────────────────────────────────────────
+  rqa_nk:
+    # Diagonal line features
+    RecurrenceRate: 1
+    DiagRec: 1          # diagonal recurrence
+    Determinism: 1
+    DeteRec: 1          # DET / RR ratio
+    L: 1                # mean diagonal line length
+    Divergence: 1
+    LEn: 1
+
+    # Vertical line features
+    Laminarity: 1
+    TrappingTime: 1
+    VMax: 1
+    VEn: 1
+
+    # White vertical line features
+    W: 1
+    WMax: 1
+    WEn: 1              # white vertical line length entropy

@@ -1,6 +1,8 @@
 wandb==0.23.1
 wfdb==4.2.0
 pydantic
+neurokit2
+PyYAML
 omegaconf
 hydra-core
 tqdm
