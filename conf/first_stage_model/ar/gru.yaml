@@ -1,0 +1,3 @@
+_target_: Metadata.ARBlockConfig
+latent_dim: 32
+context_dim: 64

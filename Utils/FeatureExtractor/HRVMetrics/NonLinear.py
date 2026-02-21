@@ -1,6 +1,7 @@
 import numpy as np
+from Utils.FeatureExtractor.Base import BaseExtractor
 
-class ApproximateEntropy:
+class ApproximateEntropy(BaseExtractor):
     def __init__(self, m:int=2, r:float=0.0):
         self.m = m
         self.r = r
@@ -21,7 +22,7 @@ class ApproximateEntropy:
         return np.log(np.sum(phi_m) / np.sum(phi_m_plus_1))
     
 
-class SampleEntropy:
+class SampleEntropy(BaseExtractor):
     def __init__(self, m: int = 2,r: float = 0.0):
         self.m = m
         self.r = r
@@ -65,70 +66,3 @@ class SampleEntropy:
             
         return float(-np.log(A / B))
     
-
-
-# import numpy as np
-
-# def calculate_apen(self, rr_window, m=2, r=0.0):
-#     """
-#     Calculates Approximate Entropy (ApEn).
-#     A lower value reflects higher degree of regularity[cite: 186].
-#     """
-#     N = len(rr_window)
-#     if N <= m + 1:
-#         return 0.0
-
-#     def _phi(m):
-#         x = np.array([rr_window[i:i + m] for i in range(N - m + 1)])
-#         # Count similar patterns within distance r
-#         C = np.zeros(len(x))
-#         for i in range(len(x)):
-#             # Use Chebyshev distance as per standard ApEn [cite: 183]
-#             distances = np.max(np.abs(x - x[i]), axis=1)
-#             C[i] = np.sum(distances <= r) / (N - m + 1)
-#         return np.sum(np.log(C)) / (N - m + 1)
-
-#     return abs(_phi(m) - _phi(m + 1))
-
-# def calculate_sampen(self, rr_window, m=2, r=0.0):
-#     """
-#     Calculates Sample Entropy (SampEn).
-#     Found to have a better probability value (p=0.003) for PAF prediction.
-#     """
-#     N = len(rr_window)
-#     if N <= m + 1:
-#         return 0.0
-
-#     def _count_matches(m):
-#         x = np.array([rr_window[i:i + m] for i in range(N - m)])
-#         matches = 0
-#         # SampEn does not count self-matches [cite: 185]
-#         for i in range(len(x)):
-#             distances = np.max(np.abs(x[i+1:] - x[i]), axis=1)
-#             matches += np.sum(distances <= r)
-#         return matches
-
-#     A = _count_matches(m + 1)
-#     B = _count_matches(m)
-    
-#     if A == 0 or B == 0:
-#         return 0.0
-#     return -np.log(A / B)
-
-# def calculate_lfhf_ratio(self, rr_window, fs=4.0):
-#     """
-#     Calculates LF/HF Ratio using Welch's method.
-#     Significant decrease observed before onset of AF[cite: 206].
-#     """
-#     from scipy.signal import welch
-    
-#     # Study uses LF (0.04-0.15 Hz) and HF (0.15-0.4 Hz) [cite: 58]
-#     freqs, psd = welch(rr_window, fs=fs, nperseg=len(rr_window))
-    
-#     lf_mask = (freqs >= 0.04) & (freqs <= 0.15)
-#     hf_mask = (freqs >= 0.15) & (freqs <= 0.4)
-    
-#     lf_power = np.trapz(psd[lf_mask], freqs[lf_mask])
-#     hf_power = np.trapz(psd[hf_mask], freqs[hf_mask])
-    
-#     return lf_power / hf_power if hf_power > 0 else 0.0

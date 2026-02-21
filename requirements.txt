@@ -3,3 +3,8 @@ wfdb==4.2.0
 pydantic
 neurokit2
 PyYAML
+omegaconf
+hydra-core
+tqdm
+python-dotenv
+torch

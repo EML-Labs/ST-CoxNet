@@ -1,0 +1,10 @@
+# conf/dataset/paf.yaml
+
+defaults:
+  - file_loader: default
+  - rr_sequence: default
+  - feature_extractors: default
+
+_target_: Utils.Dataset.RRSequenceDataset.RRSequenceDataset
+sampling_rate: 128
+

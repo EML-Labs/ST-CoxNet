@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
-from Configs import LATENT_SIZE, CONTEXT_SIZE
 
 class ARBlock(nn.Module):
-    def __init__(self, latent_dim=LATENT_SIZE, context_dim=CONTEXT_SIZE):
+    def __init__(self, latent_dim:int, context_dim:int):
         super().__init__()
 
         self.gru = nn.GRU(

@@ -1,7 +1,9 @@
 import torch
-from typing import List,Dict,Tuple
+from typing import List, Tuple
 
+from Utils.Runner.EpochRunner import EpochRunner
 
+<<<<<<< feature/automated-configurations
 class Validator:
     loss_weights = []
     def __init__(self, model: torch.nn.Module, device: torch.device, loss: torch.nn.Module, number_of_predictors: int):
@@ -9,6 +11,8 @@ class Validator:
         self.device = device
         self.loss_weights = [1.0 for _ in range(number_of_predictors)]
         self.loss = loss
+        self.predictions = []
+        self.targets = []
 
     def validation_step(
         self, 
@@ -29,6 +33,8 @@ class Validator:
         total_loss = 0.0
 
         y_preds = self.model.predictor(last_context)  # Each: [B, num_metrics]
+        self.predictions.append([y.cpu().detach() for y in y_preds])
+        self.targets.append(hrv_targets.cpu().detach())
         for idx,y_pred in enumerate(y_preds):
             loss = self.loss(y_pred, hrv_targets[:, idx, :])
             losses.append(loss)
@@ -46,6 +52,8 @@ class Validator:
         losses = [0.0 for _ in self.loss_weights]
         num_batches = 0
 
+        self.predictions = []
+        self.targets = []
         for rr_windows, hrv_targets, _ in dataloader:
             rr_windows = rr_windows.to(self.device)  # [B, T, W]
             hrv_targets = hrv_targets.to(self.device)  # [B, T, num_metrics]
@@ -56,7 +64,30 @@ class Validator:
             for idx, l in enumerate(batch_losses):
                 losses[idx] += l.item()
             num_batches += 1
+=======
 
-        avg_loss = total_loss / num_batches
-        avg_losses = [l / num_batches for l in losses]
-        return avg_loss, tuple(avg_losses)
+class Validator(EpochRunner):
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        device: torch.device,
+        loss: torch.nn.Module,
+        number_of_predictors: int,
+        loss_weights: List[float] | None = None,
+    ):
+        weights = loss_weights if loss_weights is not None else [
+            1.0 for _ in range(number_of_predictors)
+        ]
+        super().__init__(model=model, device=device, loss=loss, loss_weights=weights)
+
+    def validation_epoch(
+        self,
+        dataloader: torch.utils.data.DataLoader,
+    ) -> Tuple[float, Tuple[float, ...]]:
+        return self._run_epoch(
+            dataloader=dataloader,
+            is_train=False,
+            optimizer=None,
+        )
+>>>>>>> main
+

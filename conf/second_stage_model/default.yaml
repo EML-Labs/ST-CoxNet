@@ -1,0 +1,3 @@
+_target_: Model.SecondStageModel.SecondStageModel
+embedding_dim: 32
+context_dim: 64

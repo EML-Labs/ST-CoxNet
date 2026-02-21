@@ -1,0 +1,18 @@
+- sample_entropy:
+    _target_: Utils.FeatureExtractor.HRVMetrics.NonLinear.SampleEntropy
+    m: 2
+    r: 0.2
+- approximate_entropy:
+    _target_: Utils.FeatureExtractor.HRVMetrics.NonLinear.ApproximateEntropy
+    m: 2
+    r: 0.2
+- rmssd:
+    _target_: Utils.FeatureExtractor.HRVMetrics.ConventionalFeatures.RMSSD
+- lfhf:
+    _target_: Utils.FeatureExtractor.HRVMetrics.ConventionalFeatures.LFHF
+- ectopic_percentage:
+    _target_: Utils.FeatureExtractor.HRVMetrics.ConventionalFeatures.EctopicPercentage
+- alpha1:
+    _target_: Utils.FeatureExtractor.HRVMetrics.FractalMeasures.Alpha1
+
+

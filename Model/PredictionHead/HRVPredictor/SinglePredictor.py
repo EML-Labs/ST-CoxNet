@@ -1,9 +1,8 @@
 import torch.nn as nn
 import torch
-from Configs import CONTEXT_SIZE, NUMBER_OF_TARGETS_FOR_PREDICTION
 
 class HRVPredictor(nn.Module):
-    def __init__(self, context_dim:int=CONTEXT_SIZE, num_targets:int=NUMBER_OF_TARGETS_FOR_PREDICTION):
+    def __init__(self, context_dim:int, num_targets:int):
         super().__init__()
 
         self.net = nn.Sequential(

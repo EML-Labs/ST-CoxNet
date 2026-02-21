@@ -1,9 +1,8 @@
 import torch.nn as nn
 import torch
-from Configs import LATENT_SIZE
 
 class Encoder(nn.Module):
-    def __init__(self, latent_dim=LATENT_SIZE):
+    def __init__(self, latent_dim:int):
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Conv1d(1, 8, kernel_size=5, padding=2,stride=2), # [B, 1, 50] -> [B, 8, 25]
