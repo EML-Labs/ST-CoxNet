@@ -378,7 +378,8 @@ class HRVFeatures(BaseExtractor):
         [7] C. Maier, M. Bauch and H. Dickhaus, "Screening and prediction of paroxysmal atrial fibrillation by analysis of heart rate variability parameters," Computers in Cardiology 2001. Vol.28 (Cat. No.01CH37287), Rotterdam, Netherlands, 2001, pp. 129-132, doi: 10.1109/CIC.2001.977608. keywords: {Atrial fibrillation;Heart rate variability;Testing;Electrocardiography;Performance analysis;Sampling methods;Heart rate detection;Heart rate;Fluctuations;Polynomials},
         [8] Grégoire, J. M., Gilon, C., Marelli, F., Godart, P., Bersini, H., & Carlier, S. (2025). Autonomic Nervous System Activity before Atrial Fibrillation Onset as Assessed by Heart Rate Variability. Reviews in cardiovascular medicine, 26(1), 25364. https://doi.org/10.31083/RCM25364
         [9] Ebrahimzadeh, E., Kalantari, M., Joulani, M., Shahraki, R. S., Fayaz, F., & Ahmadi, F. (2018). Prediction of paroxysmal Atrial Fibrillation: A machine learning based approach using combined feature vector and mixture of expert classification on HRV signal. Computer methods and programs in biomedicine, 165, 53–67. https://doi.org/10.1016/j.cmpb.2018.07.014
-
+        [10] Shin, D. G., Yoo, C. S., Yi, S. H., Bae, J. H., Kim, Y. J., Park, J. S., & Hong, G. R. (2006). Prediction of paroxysmal atrial fibrillation using nonlinear analysis of the R-R interval dynamics before the spontaneous onset of atrial fibrillation. Circulation journal : official journal of the Japanese Circulation Society, 70(1), 94–99. https://doi.org/10.1253/circj.70.94
+        [11] Zhu, H., Jiang, N., Xia, S., & Tong, J. (2024). Atrial Fibrillation Prediction Based on Recurrence Plot and ResNet. Sensors, 24(15), 4978. https://doi.org/10.3390/s24154978
 
         """
         return {
@@ -429,86 +430,86 @@ class HRVFeatures(BaseExtractor):
             "HRV_LnHF": """The log transformed HF.""", 
             "HRV_SD1": (
                 "Standard deviation perpendicular to the Poincaré plot line of identity. "
-                "Index of short-term (beat-to-beat) RR variability. Equivalent to RMSSD. [8]"
+                "Index of short-term (beat-to-beat) RR variability. Equivalent to RMSSD. [1]"
             ),
             "HRV_SD2": (
                 "Standard deviation along the Poincaré plot line of identity. "
-                "Index of long-term HRV changes. [8]"
+                "Index of long-term HRV changes. [1]"
             ),
-            "HRV_SD1SD2": "Ratio SD1 / SD2. Describes short-term to long-term variability balance. [8]",
+            "HRV_SD1SD2": "Ratio SD1 / SD2. Describes short-term to long-term variability balance. [5]",
             "HRV_S": (
                 "Area of the Poincaré plot ellipse (π × SD1 × SD2). "
-                "Proportional to SD1SD2; overall HRV measure. [8]"
+                "Proportional to SD1SD2; overall HRV measure. "
             ),
             "HRV_CSI": (
                 "Cardiac Sympathetic Index (Toichi, 1997). Longitudinal variability (4×SD2) "
-                "divided by transverse variability (4×SD1). Independent of vagal activity. [12]"
+                "divided by transverse variability (4×SD1). Independent of vagal activity. "
             ),
             "HRV_CVI": (
                 "Cardiac Vagal Index (Toichi, 1997). Logarithm of the product of "
                 "longitudinal (4×SD2) and transverse (4×SD1) variability. "
-                "Unaffected by sympathetic activity. [12]"
+                "Unaffected by sympathetic activity. "
             ),
             "HRV_CSI_Modified": (
                 "Modified CSI (Jeppesen, 2014). Square of longitudinal variability "
-                "divided by transverse variability. [13]"
+                "divided by transverse variability. "
             ),
 
             # ── Heart Rate Asymmetry (Poincaré) ───────────────────────────────
             "HRV_GI": (
                 "Guzik's Index. Distance of Poincaré points above the line of identity (LI) "
-                "to LI, divided by distance of all off-LI points to LI. [9]"
+                "to LI, divided by distance of all off-LI points to LI. "
             ),
             "HRV_SI": (
                 "Slope Index. Phase angle of points above LI divided by phase angle "
-                "of all off-LI points. [9]"
+                "of all off-LI points. "
             ),
             "HRV_AI": (
                 "Area Index. Cumulative sector area of points above LI divided by "
-                "cumulative sector area of all off-LI points. [9]"
+                "cumulative sector area of all off-LI points. "
             ),
             "HRV_PI": (
                 "Porta's Index. Number of Poincaré points below LI divided by "
-                "total off-LI points. [9]"
+                "total off-LI points. "
             ),
             "HRV_SD1d": (
                 "Short-term variance of contributions of decelerations "
-                "(prolongations of RR intervals) to HRV. (Piskorski, 2011) [10]"
+                "(prolongations of RR intervals) to HRV.  "
             ),
             "HRV_SD1a": (
                 "Short-term variance of contributions of accelerations "
-                "(shortenings of RR intervals) to HRV. (Piskorski, 2011) [10]"
+                "(shortenings of RR intervals) to HRV.  "
             ),
-            "HRV_C1d": "Contribution of heart rate decelerations to short-term HRV. (Piskorski, 2011) [10]",
-            "HRV_C1a": "Contribution of heart rate accelerations to short-term HRV. (Piskorski, 2011) [10]",
+            "HRV_C1d": "Contribution of heart rate decelerations to short-term HRV.  ",
+            "HRV_C1a": "Contribution of heart rate accelerations to short-term HRV.  ",
             "HRV_SD2d": (
                 "Long-term variance of contributions of decelerations "
-                "(prolongations of RR intervals) to HRV. (Piskorski, 2011) [10]"
+                "(prolongations of RR intervals) to HRV. ) "
             ),
             "HRV_SD2a": (
                 "Long-term variance of contributions of accelerations "
-                "(shortenings of RR intervals) to HRV. (Piskorski, 2011) [10]"
+                "(shortenings of RR intervals) to HRV.  "
             ),
-            "HRV_C2d": "Contribution of heart rate decelerations to long-term HRV. (Piskorski, 2011) [10]",
-            "HRV_C2a": "Contribution of heart rate accelerations to long-term HRV. (Piskorski, 2011) [10]",
-            "HRV_SDNNd": "Total variance of contributions of decelerations to HRV. (Piskorski, 2011) [10]",
-            "HRV_SDNNa": "Total variance of contributions of accelerations to HRV. (Piskorski, 2011) [10]",
-            "HRV_Cd": "Total contribution of heart rate decelerations to HRV. (Piskorski, 2011) [10]",
-            "HRV_Ca": "Total contribution of heart rate accelerations to HRV. (Piskorski, 2011) [10]",
+            "HRV_C2d": "Contribution of heart rate decelerations to long-term HRV.  ",
+            "HRV_C2a": "Contribution of heart rate accelerations to long-term HRV.  ",
+            "HRV_SDNNd": "Total variance of contributions of decelerations to HRV.  ",
+            "HRV_SDNNa": "Total variance of contributions of accelerations to HRV.  ",
+            "HRV_Cd": "Total contribution of heart rate decelerations to HRV.  ",
+            "HRV_Ca": "Total contribution of heart rate accelerations to HRV.  ",
 
             # ── Heart Rate Fragmentation ───────────────────────────────────────
-            "HRV_PIP": "Percentage of inflection points in the RR interval series. (Costa, 2017) [11]",
+            "HRV_PIP": "Percentage of inflection points in the RR interval series.  ",
             "HRV_IALS": (
                 "Inverse of the average length of acceleration/deceleration segments. "
-                "Higher values indicate greater fragmentation. (Costa, 2017) [11]"
+                "Higher values indicate greater fragmentation.  "
             ),
-            "HRV_PSS": "Percentage of short segments in the RR interval series. (Costa, 2017) [11]",
-            "HRV_PAS": "Percentage of NN intervals in alternation segments. (Costa, 2017) [11]",
+            "HRV_PSS": "Percentage of short segments in the RR interval series.  ",
+            "HRV_PAS": "Percentage of NN intervals in alternation segments.  ",
 
             # ── Detrended Fluctuation Analysis ────────────────────────────────
             "HRV_DFA_alpha1": (
                 "Short-term scaling exponent from monofractal DFA (n ≈ 4–16 beats). "
-                "α1 < 0.5: anti-correlated; α1 ≈ 1.0: 1/f noise; α1 > 1.5: non-stationary. [8]"
+                "α1 < 0.5: anti-correlated; α1 ≈ 1.0: 1/f noise; α1 > 1.5: non-stationary. [1]"
             ),
             "HRV_DFA_alpha2": (
                 "Long-term scaling exponent from monofractal DFA (n ≈ 16–64 beats). "
@@ -516,57 +517,57 @@ class HRVFeatures(BaseExtractor):
             ),
 
             # ── Multifractal DFA — alpha1 scale ───────────────────────────────
-            "HRV_MFDFA_alpha1_Width":      "Width of the multifractal spectrum at the alpha1 scale. Larger values indicate greater multifractality. [8]",
-            "HRV_MFDFA_alpha1_Peak":       "Peak (most probable) singularity exponent of the multifractal spectrum at the alpha1 scale. [8]",
-            "HRV_MFDFA_alpha1_Mean":       "Mean singularity exponent of the multifractal spectrum at the alpha1 scale. [8]",
-            "HRV_MFDFA_alpha1_Max":        "Maximum singularity exponent of the multifractal spectrum at the alpha1 scale. [8]",
-            "HRV_MFDFA_alpha1_Delta":      "Asymmetry index of the multifractal spectrum at the alpha1 scale (right minus left width). [8]",
-            "HRV_MFDFA_alpha1_Asymmetry":  "Normalised asymmetry of the multifractal spectrum at the alpha1 scale. [8]",
-            "HRV_MFDFA_alpha1_Fluctuation":"Fluctuation of the generalised Hurst exponent at the alpha1 scale. [8]",
-            "HRV_MFDFA_alpha1_Increment":  "Increment of the multifractal spectrum at the alpha1 scale. [8]",
+            "HRV_MFDFA_alpha1_Width":      "Width of the multifractal spectrum at the alpha1 scale. Larger values indicate greater multifractality. ",
+            "HRV_MFDFA_alpha1_Peak":       "Peak (most probable) singularity exponent of the multifractal spectrum at the alpha1 scale. ",
+            "HRV_MFDFA_alpha1_Mean":       "Mean singularity exponent of the multifractal spectrum at the alpha1 scale.  ",
+            "HRV_MFDFA_alpha1_Max":        "Maximum singularity exponent of the multifractal spectrum at the alpha1 scale.  ",
+            "HRV_MFDFA_alpha1_Delta":      "Asymmetry index of the multifractal spectrum at the alpha1 scale (right minus left width).  ",
+            "HRV_MFDFA_alpha1_Asymmetry":  "Normalised asymmetry of the multifractal spectrum at the alpha1 scale.  ",
+            "HRV_MFDFA_alpha1_Fluctuation":"Fluctuation of the generalised Hurst exponent at the alpha1 scale.  ",
+            "HRV_MFDFA_alpha1_Increment":  "Increment of the multifractal spectrum at the alpha1 scale.  ",
 
             # ── Multifractal DFA — alpha2 scale ───────────────────────────────
-            "HRV_MFDFA_alpha2_Width":      "Width of the multifractal spectrum at the alpha2 scale. [8]",
-            "HRV_MFDFA_alpha2_Peak":       "Peak singularity exponent of the multifractal spectrum at the alpha2 scale. [8]",
-            "HRV_MFDFA_alpha2_Mean":       "Mean singularity exponent of the multifractal spectrum at the alpha2 scale. [8]",
-            "HRV_MFDFA_alpha2_Max":        "Maximum singularity exponent of the multifractal spectrum at the alpha2 scale. [8]",
-            "HRV_MFDFA_alpha2_Delta":      "Asymmetry index of the multifractal spectrum at the alpha2 scale. [8]",
-            "HRV_MFDFA_alpha2_Asymmetry":  "Normalised asymmetry of the multifractal spectrum at the alpha2 scale. [8]",
-            "HRV_MFDFA_alpha2_Fluctuation":"Fluctuation of the generalised Hurst exponent at the alpha2 scale. [8]",
-            "HRV_MFDFA_alpha2_Increment":  "Increment of the multifractal spectrum at the alpha2 scale. [8]",
+            "HRV_MFDFA_alpha2_Width":      "Width of the multifractal spectrum at the alpha2 scale.  ",
+            "HRV_MFDFA_alpha2_Peak":       "Peak singularity exponent of the multifractal spectrum at the alpha2 scale.  ",
+            "HRV_MFDFA_alpha2_Mean":       "Mean singularity exponent of the multifractal spectrum at the alpha2 scale.  ",
+            "HRV_MFDFA_alpha2_Max":        "Maximum singularity exponent of the multifractal spectrum at the alpha2 scale.  ",
+            "HRV_MFDFA_alpha2_Delta":      "Asymmetry index of the multifractal spectrum at the alpha2 scale.  ",
+            "HRV_MFDFA_alpha2_Asymmetry":  "Normalised asymmetry of the multifractal spectrum at the alpha2 scale.  ",
+            "HRV_MFDFA_alpha2_Fluctuation":"Fluctuation of the generalised Hurst exponent at the alpha2 scale.  ",
+            "HRV_MFDFA_alpha2_Increment":  "Increment of the multifractal spectrum at the alpha2 scale.  ",
 
             # ── Entropy metrics ────────────────────────────────────────────────
             "HRV_ApEn": (
                 "Approximate Entropy. Quantifies regularity/predictability of the RR series; "
-                "lower values indicate more regular dynamics. [8]"
+                "lower values indicate more regular dynamics. [10]"
             ),
             "HRV_SampEn": (
                 "Sample Entropy. Similar to ApEn but less biased; "
-                "lower values indicate more regular dynamics. [8]"
+                "lower values indicate more regular dynamics. [10]"
             ),
             "HRV_ShanEn": (
                 "Shannon Entropy of the RR interval distribution. "
-                "Measures information content of the series. [8]"
+                "Measures information content of the series. [5]"
             ),
             "HRV_FuzzyEn": (
                 "Fuzzy Entropy. Uses fuzzy membership functions to assess regularity; "
-                "more robust to noise than SampEn. [8]"
+                "more robust to noise than SampEn. "
             ),
             "HRV_MSEn": (
                 "Multiscale Entropy. Assesses complexity across multiple temporal scales. "
-                "Healthy dynamics tend to have higher MSEn across scales. [8]"
+                "Healthy dynamics tend to have higher MSEn across scales. "
             ),
-            "HRV_CMSEn": "Composite Multiscale Entropy. Reduces variance of MSEn estimates. [8]",
-            "HRV_RCMSEn": "Refined Composite Multiscale Entropy. Further improves CMSEn accuracy. [8]",
+            "HRV_CMSEn": "Composite Multiscale Entropy. Reduces variance of MSEn estimates. ",
+            "HRV_RCMSEn": "Refined Composite Multiscale Entropy. Further improves CMSEn accuracy. ",
 
             # ── Fractal / complexity metrics ───────────────────────────────────
             "HRV_CD": (
                 "Correlation Dimension. Estimates the fractal dimension of the RR attractor; "
-                "lower values indicate less complex dynamics. [8]"
+                "lower values indicate less complex dynamics. "
             ),
             "HRV_HFD": (
                 "Higuchi Fractal Dimension. Measures signal complexity directly from the time series; "
-                "values range from 1 (simple) to 2 (highly complex). [8]"
+                "values range from 1 (simple) to 2 (highly complex). "
             ),
             "HRV_KFD": (
                 "Katz Fractal Dimension. Estimates fractal dimension from waveform diameter "
@@ -585,60 +586,60 @@ class HRVFeatures(BaseExtractor):
             "NME": (
                 "Normalised Maximum Eigenvalue. Ratio of the largest eigenvalue of the "
                 "phase-space covariance matrix to the total variance. High NME indicates "
-                "that most variance lies along a single direction (low complexity)."
+                "that most variance lies along a single direction (low complexity). [7]"
             ),
             "EEV": (
                 "Eigenvalue Entropy. Shannon entropy of the normalised eigenvalue spectrum. "
-                "Low values indicate anisotropic (low-dimensional) phase-space structure."
+                "Low values indicate anisotropic (low-dimensional) phase-space structure. [7]"
             ),
 
             # ── Diagonal line features ────────────────────────────────────────
             "RecurrenceRate_RRFixed": (
                 "Recurrence Rate (custom, fixed-RR threshold). Fraction of recurrent points "
-                "in the recurrence matrix (excluding the main diagonal). [14]"
+                "in the recurrence matrix (excluding the main diagonal). [11] "
             ),
             "Determinism_RRFixed": (
                 "Determinism (custom). Fraction of recurrent points forming diagonal lines "
-                "of length ≥ l_min. Higher values indicate more predictable dynamics. [14]"
+                "of length ≥ l_min. Higher values indicate more predictable dynamics. [11]"
             ),
             "L_RRFixed": (
                 "Mean diagonal line length (custom). Average length of diagonal structures "
-                "≥ l_min; related to the predictability time of the system. [14]"
+                "≥ l_min; related to the predictability time of the system. [11]"
             ),
-            "LMax_RRFixed": "Maximum diagonal line length (custom). [14]",
-            "LMedian_RRFixed": "Median diagonal line length (custom). [14]",
+            "LMax_RRFixed": "Maximum diagonal line length (custom). [11]",
+            "LMedian_RRFixed": "Median diagonal line length (custom). ",
             "LEn_RRFixed": (
                 "Diagonal line length entropy (custom). Shannon entropy of the diagonal "
-                "line length distribution; higher values indicate more complex line structures. [14]"
+                "line length distribution; higher values indicate more complex line structures."
             ),
             "Divergence_RRFixed": (
                 "Divergence (custom). Reciprocal of LMax (1/LMax). Proxy for the largest "
-                "positive Lyapunov exponent; higher values indicate faster divergence. [14]"
+                "positive Lyapunov exponent; higher values indicate faster divergence. "
             ),
-            "Ratio_RRFixed": "DET / RR ratio (custom). [14]",
-            "LMinCount_RRFixed": "Total count of diagonal lines with length ≥ l_min (custom). [14]",
+            "Ratio_RRFixed": "DET / RR ratio (custom). ",
+            "LMinCount_RRFixed": "Total count of diagonal lines with length ≥ l_min (custom). ",
 
             # ── Vertical line features ────────────────────────────────────────
             "Laminarity_RRFixed": (
                 "Laminarity (custom). Fraction of recurrent points forming vertical lines "
-                "of length ≥ v_min. Reflects intermittent laminar states. [14]"
+                "of length ≥ v_min. Reflects intermittent laminar states. [11]"
             ),
             "TrappingTime_RRFixed": (
                 "Trapping Time (custom). Mean vertical line length ≥ v_min. "
-                "Estimates the average time the system remains in a laminar state. [14]"
+                "Estimates the average time the system remains in a laminar state. [11]"
             ),
-            "VMaX_RRFixed": "Maximum vertical line length (custom). [14]",
+            "VMaX_RRFixed": "Maximum vertical line length (custom). ",
             "VEn_RRFixed": (
                 "Vertical line length entropy (custom). Shannon entropy of the vertical "
-                "line length distribution. [14]"
+                "line length distribution. "
             ),
 
             # ── White vertical line features ──────────────────────────────────
             "W_RRFixed": (
                 "Mean white vertical line length (custom). Average time between recurrences "
-                "(recurrence time); related to the inverse of recurrence rate. [14]"
+                "(recurrence time); related to the inverse of recurrence rate. "
             ),
-            "WMax_RRFixed": "Maximum white vertical line length (custom). [14]",
+            "WMax_RRFixed": "Maximum white vertical line length (custom). ",
 
             # ── Advanced ──────────────────────────────────────────────────────
             "K2": (
@@ -653,50 +654,50 @@ class HRVFeatures(BaseExtractor):
 
             "RecurrenceRate": (
                 "Recurrence Rate (NeuroKit2). Percentage of recurrent points in the "
-                "recurrence plot (excluding the main diagonal). [14]"
+                "recurrence plot (excluding the main diagonal). [11]"
             ),
             "DiagRec": (
                 "Diagonal Recurrence (NeuroKit2). Recurrence rate computed from "
-                "diagonal line structures only. [14]"
+                "diagonal line structures only. "
             ),
             "Determinism": (
                 "Determinism (NeuroKit2). Fraction of recurrent points belonging to "
-                "diagonal lines of length ≥ l_min. [14]"
+                "diagonal lines of length ≥ l_min. [11]"
             ),
             "DeteRec": (
                 "DET / RR ratio (NeuroKit2). Ratio of Determinism to Recurrence Rate; "
-                "higher values indicate more structured recurrence. [14]"
+                "higher values indicate more structured recurrence."
             ),
-            "L": "Mean diagonal line length (NeuroKit2). [14]",
+            "L": "Mean diagonal line length (NeuroKit2). [11]",
             "Divergence": (
                 "Divergence (NeuroKit2). Reciprocal of the maximum diagonal line length; "
-                "proxy for the largest Lyapunov exponent. [14]"
+                "proxy for the largest Lyapunov exponent. "
             ),
             "LEn": (
                 "Diagonal line length entropy (NeuroKit2). Shannon entropy of the "
-                "diagonal line length distribution. [14]"
+                "diagonal line length distribution. "
             ),
             "Laminarity": (
                 "Laminarity (NeuroKit2). Fraction of recurrent points forming vertical "
-                "lines of length ≥ v_min. [14]"
+                "lines of length ≥ v_min. [11]"
             ),
             "TrappingTime": (
                 "Trapping Time (NeuroKit2). Mean vertical line length; average time "
-                "the system spends in a laminar state. [14]"
+                "the system spends in a laminar state. [111]"
             ),
-            "VMax": "Maximum vertical line length (NeuroKit2). [14]",
+            "VMax": "Maximum vertical line length (NeuroKit2). [11]",
             "VEn": (
                 "Vertical line length entropy (NeuroKit2). Shannon entropy of the "
-                "vertical line length distribution. [14]"
+                "vertical line length distribution. "
             ),
             "W": (
                 "Mean white vertical line length (NeuroKit2). Average recurrence time "
-                "(time between consecutive recurrences in the same column). [14]"
+                "(time between consecutive recurrences in the same column). "
             ),
-            "WMax": "Maximum white vertical line length (NeuroKit2). [14]",
+            "WMax": "Maximum white vertical line length (NeuroKit2).",
             "WEn": (
                 "White vertical line length entropy (NeuroKit2). Shannon entropy of the "
-                "distribution of white vertical line lengths (recurrence time distribution). [14]"
+                "distribution of white vertical line lengths (recurrence time distribution). "
             )
         }
     
