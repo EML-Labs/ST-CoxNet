@@ -1,12 +1,14 @@
 defaults:
   - _self_
   - dataset: paf
-  - model: default
+  - first_stage_model: default
+  - second_stage_model: default
   - trainer: default
   - validator: default
   - tester: default
   - preprocessing: default
   - feature_extractors: default
+  - plotters : default
   
 
 seed: 42
