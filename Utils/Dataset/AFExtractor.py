@@ -1,4 +1,3 @@
-
 from typing import Optional, List, Dict
 import os
 import numpy as np
@@ -199,7 +198,7 @@ class AFExtractor:
         extractable_episodes = [
             ep for ep in episodes
             if ep.duration >= self.AF_low 
-            and self.preAF_low <= ep.available_sr_before <= self.preAF_max
+            and self.preAF_low <= ep.available_sr_before 
             and not ep.starts_recording
         ]
 

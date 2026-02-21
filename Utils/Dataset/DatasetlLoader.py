@@ -26,8 +26,8 @@ class DatasetLoader(ABC):
         self.search_paths = search_paths
 
         # Auto-discover data path
-        # self._discover_data_path()
-        # self._discover_record_ids()
+        self._discover_data_path()
+        self._discover_record_ids()
 
     def _discover_data_path(self):
         """Auto-discover Data path"""
