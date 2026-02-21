@@ -12,141 +12,121 @@ from Validator import Validator
 import torch
 import random
 
+import wandb  # Imported inside to avoid side effects when unused
 import hydra
+import torch
+from dotenv import load_dotenv
 from omegaconf import DictConfig, OmegaConf
-import os
-from hydra.core.config_store import ConfigStore
+from tqdm import tqdm
+
+from Utils.Logger import get_logger
+from Utils.Pipeline import build_pipeline, Pipeline
+from Train import Trainer
+
+
+load_dotenv()
 
 
 @hydra.main(config_path="conf", config_name="conf", version_base=None)
 def main(cfg: DictConfig):
+    """
+    Primary training entry point with WandB logging.
+    """
+
     random.seed(cfg.seed)
-    config = Config(**cfg)
-    train_file_list, val_file_list, test_file_list = split(config.dataset.file_names,config.split)
-    train_file_config = config.dataset.model_copy(update={"file_names": train_file_list})
-    val_file_config = config.dataset.model_copy(update={"file_names": val_file_list})
-    test_file_config = config.dataset.model_copy(update={"file_names": test_file_list})
+    torch.manual_seed(cfg.seed)
 
-    training_metadata = DatasetMetadata(
-        name="PAF Training Dataset",
-        sampling_frequency=config.dataset.sampling_rate,
-        file_loader=train_file_config,
-        rr_sequence=config.preprocessing.rr_sequence,
-        feature_types=config.features.convert()
-    )
-    validation_metadata = DatasetMetadata(
-        name="PAF Validation Dataset",
-        sampling_frequency=config.dataset.sampling_rate,
-        file_loader=val_file_config,
-        rr_sequence=config.preprocessing.rr_sequence,
-        feature_types=config.features.convert()
-    )
-    test_metadata = DatasetMetadata(
-        name="PAF Test Dataset",
-        sampling_frequency=config.dataset.sampling_rate,
-        file_loader=test_file_config,
-        rr_sequence=config.preprocessing.rr_sequence,
-        feature_types=config.features.convert()
-    )
+    run = None
+    logger = None
 
-    training_dataset = RRSequenceDataset(training_metadata)
-    validation_dataset = RRSequenceDataset(validation_metadata)
-    test_dataset = RRSequenceDataset(test_metadata)
+    try:
+        wandb.login()
+        run = wandb.init(
+            entity="eml-labs",
+            project="PAF Prediction - CPC",
+            config=OmegaConf.to_container(cfg, resolve=True),
+            name=f"CPCPreModel_Run_{wandb.util.generate_id()}",
+            tags=["CPCPreModel", "Experiment"],
+        )
 
-    train_dataloader = DataLoader(training_dataset,**config.trainer.loader.model_dump())
-    val_dataloader = DataLoader(validation_dataset,**config.validator.loader.model_dump())
-    # test_dataloader = DataLoader(test_dataset,**config.tester.loader.model_dump())
+        logger = get_logger(run=run)
 
-    model = CPCPreModel(config.model)
-    optimizer = Optimizer(config.trainer.optimizer, model.parameters()).optimizer
-    device = Device(config.device).device
-    loss = Loss(config.trainer.loss).loss_fn
+        pipeline: Pipeline = build_pipeline(cfg, logger=logger)
+        trainer: Trainer = pipeline.trainer
+        validator = pipeline.validator
 
-    model.to(device)
-    trainer = Trainer(model, optimizer, device, loss, number_of_predictors=config.model.predictor.num_heads)
-    validator = Validator(model, device, loss, number_of_predictors=config.model.predictor.num_heads)
-    # tester = Tester(model, device, loss, number_of_predictors=config.model.predictor.num_heads)
+        for epoch in tqdm(range(cfg.trainer.epochs), desc="Training Epochs"):
+            train_loss, train_losses = trainer.train_epoch(pipeline.train_loader)
 
-    for epoch in range(config.trainer.epochs):
-        avg_loss, avg_losses = trainer.train_epoch(train_dataloader)
-        val_avg_loss, val_avg_losses = validator.validation_epoch(val_dataloader)
+            val_loss = None
+            val_losses = None
+            if validator is not None and pipeline.val_loader is not None:
+                val_loss, val_losses = validator.validation_epoch(pipeline.val_loader)
 
-        print(f"Epoch {epoch+1}, Total Train Loss: {avg_loss:.4f}, Total Val Loss: {val_avg_loss:.4f}")
-        for i, l in enumerate(avg_losses):
-            print(f"  Predictor {i+1} Train Loss: {l:.4f}")
-        for i, l in enumerate(val_avg_losses):
-            print(f"  Predictor {i+1} Val Loss: {l:.4f}")
+            metrics = {
+                "train/loss": train_loss,
+                **{f"train/loss_pred_{i}": l for i, l in enumerate(train_losses)},
+                "epoch": epoch + 1,
+            }
+            if val_loss is not None and val_losses is not None:
+                metrics.update(
+                    {
+                        "val/loss": val_loss,
+                        **{f"val/loss_pred_{i}": l for i, l in enumerate(val_losses)},
+                    }
+                )
+
+            logger.log(metrics)
+
+            if val_loss is not None:
+                logger.info(
+                    f"Epoch {epoch+1}, "
+                    f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}"
+                )
+            else:
+                logger.info(f"Epoch {epoch+1}, Train Loss: {train_loss:.4f}")
+
+        # Save final model and upload to WandB
+        model_path = "model.pt"
+        torch.save(pipeline.model.state_dict(), model_path)
+        artifact = wandb.Artifact("CPCPreModel", type="model")
+        artifact.add_file(model_path)
+        if run is not None:
+            run.log_artifact(artifact)
+        if logger is not None:
+            logger.info("Final model saved and logged to WandB as artifact.")
+
+    except KeyboardInterrupt:
+        # Handle manual interruption: save the current model state and upload it as an artifact
+        if "pipeline" in locals():
+            model_path = "model_interrupt.pt"
+            torch.save(pipeline.model.state_dict(), model_path)
+            artifact = wandb.Artifact("CPCPreModel-interrupt", type="model")
+            artifact.add_file(model_path)
+            if run is not None:
+                run.log_artifact(artifact)
+        if logger is not None:
+            logger.info("Training interrupted by user (KeyboardInterrupt). Model checkpoint saved and logged to WandB.")
+        # Do not re-raise to allow a clean shutdown
+
+    except Exception as e:
+        # Save model and log as artifact if something goes wrong
+        if "pipeline" in locals():
+            torch.save(pipeline.model.state_dict(), "model.pt")
+            artifact = wandb.Artifact("CPCPreModel", type="model")
+            artifact.add_file("model.pt")
+            if run is not None:
+                run.log_artifact(artifact)
+        if logger is not None:
+            logger.info(f"An error occurred: {str(e)}")
+        if run is not None:
+            run.finish()
+        raise
+
+    finally:
+        if run is not None:
+            run.finish()
 
 
 if __name__ == "__main__":
     main()
-
-# random.seed(42)
-
-# number_list = range(1,51)
-# validation_numbers = random.sample(number_list, 10)
-# training_numbers = [n for n in number_list if n not in validation_numbers]
-
-# validation_file_loader_metadata = FileLoaderMetadata(
-#     file_path="/Users/yasantha-mac/Downloads/paf-prediction-challenge-database-1.0.0",
-#     file_names=[f"p{p:02d}.dat" for p in validation_numbers],
-#     sample_needed=False
-# )
-# training_file_loader_metadata = FileLoaderMetadata(
-#     file_path="/Users/yasantha-mac/Downloads/paf-prediction-challenge-database-1.0.0",
-#     file_names=[f"p{p:02d}.dat" for p in training_numbers],
-#     sample_needed=False
-# )
-# rr_sequence_metadata = RRSequenceMetadata(
-#     window_size=50,
-#     stride=10,
-#     horizons=[4, 8, 16],
-#     seq_len=10
-# )
-
-# feature_types = [
-#     (FeatureType.SampleEntropy, {"m": 2, "r": 0.2}),
-#     (FeatureType.ApproximateEntropy, {"m": 2, "r": 0.2}),
-#     (FeatureType.RMSSD, {}),
-#     (FeatureType.LFHF, {}),
-#     (FeatureType.EctopicPercentage, {}),
-#     (FeatureType.Alpha1, {})
-# ]
-# training_metadata = DatasetMetadata(
-#     name="PAF Training Dataset",
-#     sampling_frequency=128,
-#     file_loader=training_file_loader_metadata,
-#     rr_sequence=rr_sequence_metadata,
-#     feature_types=feature_types
-# )
-# validation_metadata = DatasetMetadata(
-#     name="PAF Validation Dataset",
-#     sampling_frequency=128,
-#     file_loader=validation_file_loader_metadata,
-#     rr_sequence=rr_sequence_metadata,
-#     feature_types=feature_types 
-# )
-
-# if __name__ == "__main__":
-#     training_dataset = RRSequenceDataset(training_metadata)
-#     validation_dataset = RRSequenceDataset(validation_metadata)
-#     train_dataloader = DataLoader(training_dataset, batch_size=32, shuffle=True,pin_memory=True,num_workers=4)
-#     validation_dataloader = DataLoader(validation_dataset, batch_size=32, shuffle=False,pin_memory=True,num_workers=4)
-
-#     model = CPCPreModel(num_targets=6,num_predictors=3)
-#     loss = torch.nn.MSELoss()
-#     optimizer = torch.optim.AdamW(model.parameters(), lr=2e-4)
-#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#     model.to(device)
-#     trainer = Trainer(model, optimizer, device,loss,number_of_predictors=3)
-#     validator = Validator(model, device, loss,number_of_predictors=3)
-
-#     for epoch in range(10):
-#         avg_loss, avg_losses = trainer.train_epoch(train_dataloader)
-#         val_avg_loss, val_avg_losses = validator.validation_epoch(validation_dataloader)
-
-#         print(f"Epoch {epoch+1}, Total Train Loss: {avg_loss:.4f}, Total Val Loss: {val_avg_loss:.4f}")
-#         for i, l in enumerate(avg_losses):
-#             print(f"  Predictor {i+1} Train Loss: {l:.4f}")
-#         for i, l in enumerate(val_avg_losses):
-#             print(f"  Predictor {i+1} Val Loss: {l:.4f}")

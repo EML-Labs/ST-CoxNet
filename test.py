@@ -1,3 +1,5 @@
+import random
+
 import hydra
 import wandb
 import torch
@@ -22,32 +24,23 @@ from Train import Trainer
 from Validator import Validator
 from Device import Device
 
+from Utils.Logger import get_logger
+from pipeline import build_pipeline
 
 load_dotenv()
 
 @hydra.main(config_path="conf", config_name="conf", version_base=None)
 def main(cfg: DictConfig):
-
+    """
+    Lightweight debug / quick-run entry that trains without WandB.
+    """
     random.seed(cfg.seed)
     torch.manual_seed(cfg.seed)
-    np.random.seed(cfg.seed)
 
+    logger = get_logger()
+    pipeline = build_pipeline(cfg, logger=logger)
+    trainer = pipeline.trainer
     try:
-        wandb.login()
-        run = wandb.init(
-            entity="eml-labs",
-            project="PAF Prediction - CPC",
-            config=OmegaConf.to_container(cfg, resolve=True),
-            name=f"CPCPreModel_Run_{wandb.util.generate_id()}",
-            tags=["CPCPreModel", "Experiment"]
-        )
-
-        logger = get_logger(run=run)
-
-        file_loader:FileLoaderMetadata = instantiate(cfg.dataset.file_loader)
-        splitt_metadata = SplitMetadata(**cfg.split)
-
-        train_files, val_files, test_files = split(file_loader.file_names, splitt_metadata)
 
         logger.info(f"Files are split into Train: {len(train_files)}, Val: {len(val_files)}, Test: {len(test_files)} | Total: {len(file_loader.file_names)}")
 
@@ -108,3 +101,4 @@ def main(cfg: DictConfig):
 
 if __name__ == "__main__":
     main()
+
