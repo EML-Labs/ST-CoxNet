@@ -12,3 +12,11 @@ logs/
 wandb/
 *.pt
 *.png
+
+# Ignore physionet.org data files
+Utils/Dataset/AFDB/physionet.org/
+Utils/Dataset/AFDB/Extracted_Segments/
+
+# macOS system files
+.DS_Store
+
