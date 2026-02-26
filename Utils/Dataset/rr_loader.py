@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from Metadata import CSVLoaderMetadata, FileLoaderMetadata
+from Metadata import CSVLoaderMetadata, FileLoaderMetadata,FeatureType
 from Utils.Loader.FileLoader import FileLoader
 
 
@@ -33,7 +33,8 @@ def load_rr_records(
 
 def load_csv_records(
     rri_csv_path: str,
-    features_csv_path: str
+    features_csv_path: str,
+    feature_types: List[FeatureType] = None
 ) -> Dict[str, Dict]:
     rri_df = pd.read_csv(rri_csv_path)
     features_df = pd.read_csv(features_csv_path)
@@ -41,7 +42,8 @@ def load_csv_records(
     rri_cols = [col for col in rri_df.columns if col.startswith("rri_")]
     meta_cols = ["Segment_Name", "start_idx", "end_idx"]
     feature_cols = [col for col in features_df.columns if col not in meta_cols]
-
+    if feature_types is not None:
+        feature_cols = [col for col in feature_cols if any(ft.value in col for ft in feature_types)]
     merged = pd.merge(
         rri_df[meta_cols + rri_cols], 
         features_df[meta_cols + feature_cols], 

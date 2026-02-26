@@ -3,22 +3,17 @@ import numpy as np
 from torch.utils.data import Dataset
 from typing import List, Dict
 
-from Utils.Dataset.rr_loader import load_csv_records
 from Utils.Dataset.rr_windowing import build_csv_index
 
 class RRSequenceCSVDataset(Dataset):
     def __init__(self, 
-                 rri_csv_path : str,
-                 features_csv_path : str,
-                 seq_len : int,
-                 horizons : List[int],):
-        self.seq_len = seq_len
+                 records : Dict[str, Dict],
+                 horizons : List[int],
+                 seq_len : int):
         self.horizons = horizons
+        self.seq_len = seq_len
         
-        self.records = load_csv_records(
-            rri_csv_path=rri_csv_path,
-            features_csv_path=features_csv_path
-        )
+        self.records = records
         self.index = build_csv_index(
             self.records, 
             seq_len=self.seq_len,
@@ -29,6 +24,7 @@ class RRSequenceCSVDataset(Dataset):
         self.feature_names = first_rec["feature_names"]
         self.window_size = first_rec["rri"].shape[1]
         self.num_features = first_rec["hrv"].shape[1]
+
 
     def __len__(self):
         return len(self.index)
@@ -49,7 +45,7 @@ class RRSequenceCSVDataset(Dataset):
 
         return (
             torch.tensor(rri_windows, dtype=torch.float32),
-            torch.tensor(current_hrv, dtype=torch.float32),
             torch.tensor(hrvs, dtype=torch.float32),
+            torch.tensor(current_hrv, dtype=torch.float32),
         )
 

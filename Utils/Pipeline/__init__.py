@@ -12,6 +12,9 @@ from Device import Device
 from Metadata import SplitMetadata, FileLoaderMetadata
 from Train import Trainer
 from Utils.Dataset.RRSequenceDataset import RRSequenceDataset
+from Utils.Dataset.RRSequenceCSVData import RRSequenceCSVData
+from Utils.Dataset.RRSequenceCSVDataset import RRSequenceCSVDataset
+from Utils.Visualizer.RegresssionPlotter import RegressionPlotter
 from Utils.Dataset.Splitter import split
 from Validator import Validator
 
@@ -25,6 +28,8 @@ class Pipeline:
     test_loader: Optional[DataLoader]
     trainer: Trainer
     validator: Optional[Validator]
+    plotter : Optional[RegressionPlotter] = None
+
 
 
 def _build_datasets_and_loaders(
@@ -35,43 +40,32 @@ def _build_datasets_and_loaders(
     Shared construction of datasets and dataloaders from Hydra cfg.
     Returns train_loader, val_loader, test_loader, and the base file_loader metadata.
     """
-    file_loader: FileLoaderMetadata = instantiate(cfg.dataset.file_loader)
-    split_metadata = SplitMetadata(**cfg.split)
-
-    train_files, val_files, test_files = split(file_loader.file_names, split_metadata)
+    csv_data: RRSequenceCSVData = instantiate(cfg.dataset)
+    split_metadata = instantiate(cfg.split)
+    train_records, val_records, test_records = split(csv_data.records, split_metadata=split_metadata)
 
     if logger is not None:
         logger.info(
-            f"Files are split into Train: {len(train_files)}, "
-            f"Val: {len(val_files)}, Test: {len(test_files)} | "
-            f"Total: {len(file_loader.file_names)}"
+            f"Data is split into Train: {len(train_records)}, "
+            f"Val: {len(val_records)}, Test: {len(test_records)} | "
+            f"Total: {len(csv_data.records)}"
         )
 
-    train_file_loader_metadata = file_loader.model_copy(update={"file_names": train_files})
-    val_file_loader_metadata = file_loader.model_copy(update={"file_names": val_files})
-    test_file_loader_metadata = file_loader.model_copy(update={"file_names": test_files})
 
-    sampling_rate = cfg.dataset.sampling_rate
-    rr_sequence_config = instantiate(cfg.preprocessing.rr_sequence)
-    feature_extractors_config = instantiate(cfg.feature_extractors)
-
-    train_dataset = RRSequenceDataset(
-        sampling_rate,
-        rr_sequence_config,
-        train_file_loader_metadata,
-        feature_extractors_config,
+    train_dataset = RRSequenceCSVDataset(
+        records=train_records,
+        horizons=csv_data.horizons,
+        seq_len=csv_data.seq_len
     )
-    val_dataset = RRSequenceDataset(
-        sampling_rate,
-        rr_sequence_config,
-        val_file_loader_metadata,
-        feature_extractors_config,
+    val_dataset = RRSequenceCSVDataset(
+        records=val_records,
+        horizons=csv_data.horizons,
+        seq_len=csv_data.seq_len
     )
-    test_dataset = RRSequenceDataset(
-        sampling_rate,
-        rr_sequence_config,
-        test_file_loader_metadata,
-        feature_extractors_config,
+    test_dataset = RRSequenceCSVDataset(
+        records=test_records,
+        horizons=csv_data.horizons,
+        seq_len=csv_data.seq_len
     )
 
     if logger is not None:
@@ -86,7 +80,7 @@ def _build_datasets_and_loaders(
     if "tester" in cfg and "loader" in cfg.tester:
         test_loader = DataLoader(test_dataset, **cfg.tester.loader)
 
-    return train_loader, val_loader, test_loader, file_loader
+    return train_loader, val_loader, test_loader
 
 
 def build_pipeline(
@@ -97,7 +91,7 @@ def build_pipeline(
     Construct the full training/validation pipeline from a Hydra config.
     This centralizes all wiring so entry points can remain thin.
     """
-    train_loader, val_loader, test_loader, _ = _build_datasets_and_loaders(cfg, logger=logger)
+    train_loader, val_loader, test_loader = _build_datasets_and_loaders(cfg, logger=logger)
 
     model: torch.nn.Module = instantiate(cfg.first_stage_model)
     if logger is not None:
@@ -129,6 +123,8 @@ def build_pipeline(
 
     model.to(device)
 
+    plotter = RegressionPlotter()
+
     return Pipeline(
         model=model,
         device=device,
@@ -137,5 +133,6 @@ def build_pipeline(
         test_loader=test_loader,
         trainer=trainer,
         validator=validator,
+        plotter=plotter
     )
 

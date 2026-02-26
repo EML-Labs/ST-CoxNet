@@ -37,8 +37,8 @@ def build_csv_index(
     max_horizon = max(horizons)
 
     for seg_name, record in records.items():
-        n_winows = len(record["keys"])
-        max_start = n_winows - seq_len - max_horizon + 1
+        n_windows = len(record["hrv"])
+        max_start = n_windows - seq_len - max_horizon
         for start in range(0, max_start + 1):
             index.append((seg_name, start))
     return index

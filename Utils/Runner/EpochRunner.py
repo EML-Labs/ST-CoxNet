@@ -42,6 +42,15 @@ class EpochRunner:
             total_loss = total_loss + weight * loss
 
         return total_loss, tuple(losses)
+    
+    def _predict_multihead(self, rr_windows: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+        """
+        Forward pass + multi-head prediction (no loss).
+        """
+        c_seq = self.model(rr_windows)  # [B, T, context_dim]
+        last_context = c_seq[:, -1, :]  # [B, context_dim]
+        y_preds = self.model.predictor(last_context)
+        return tuple(y_preds)
 
     def _run_epoch(
         self,

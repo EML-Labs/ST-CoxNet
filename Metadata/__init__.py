@@ -21,13 +21,20 @@ class RRSequenceMetadata(BaseModel):
     horizons: list[int]
     seq_len: int
 
+
+
 class FeatureType(StrEnum):
-    LFHF = 'lfhf'
-    RMSSD = 'rmssd'
-    EctopicPercentage = 'ectopic_percentage'
-    Alpha1 = 'alpha1'
-    SampleEntropy = 'sample_entropy'
-    ApproximateEntropy = 'approximate_entropy'
+    LFHF = 'HRV_LFHF'
+    RMSSD = 'HRV_RMSSD'
+    Alpha1 = 'HRV_DFA_alpha1'
+    SampleEntropy = 'HRV_SampEn'
+    ApproximateEntropy = 'HRV_ApEn'
+class RRCSVDataMetadata(BaseModel):
+    rri_csv_path: str
+    features_csv_path: str
+    seq_len : int
+    horizons : List[int]
+    feature_types : List[FeatureType] = None
 
 class LossType(StrEnum):
     MSE = 'mse'

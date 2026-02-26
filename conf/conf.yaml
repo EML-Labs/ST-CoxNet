@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - dataset: paf
+  - dataset: afpdb
   - first_stage_model: default
   - second_stage_model: default
   - trainer: default
@@ -13,9 +13,11 @@ defaults:
 
 seed: 42
 split:
+  _target_: Metadata.SplitMetadata
   train: 0.7
   val: 0.1
   test: 0.2
+
 device:
   _target_: Device.Device
   device: "cuda"  # or "cpu"
