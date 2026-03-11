@@ -1,0 +1,414 @@
+import logging
+
+import numpy as np
+import pandas as pd
+import torch.nn as nn
+import torch
+import torch.nn.functional as F
+from torch.optim import Adam,AdamW
+from torch.utils.data import DataLoader, random_split
+from typing import Tuple,Dict
+from torch.utils.data import Dataset
+import numpy as np
+import os
+import random
+import wandb
+from Utils.Dataset.IRIDADataset import RRSequenceDataset
+from Utils.Dataset.CoxDataset.RRSequenceCoxDataset import RRSequenceCoxDataset
+from Model.DeepSurv import DeepSurvCox
+from Model.Encoder.BaseEncoder import Encoder
+from Model.AutoregressiveBlock import ARBlock
+from Model.PredictionHead.HRVPredictor.MultiStepPredictor import MultiStepHRVPredictor
+from logging import getLogger, FileHandler, Formatter, INFO
+import time
+from tqdm import tqdm
+from Loss.DeepSurvLoss import DeepSurvLoss
+from Metric.CIndex import CIndex
+import matplotlib.pyplot as plt
+
+from dotenv import load_dotenv
+
+class CPCPreModel(nn.Module):
+    def __init__(self, num_targets:int,latent_dim:int, context_dim:int,number_of_heads:int):
+        super().__init__()
+        self.encoder = Encoder(latent_dim=latent_dim)
+        self.context = ARBlock(latent_dim=latent_dim, context_dim=context_dim)
+        self.predictor = MultiStepHRVPredictor(context_dim=context_dim, num_heads=number_of_heads,num_targets=num_targets)
+
+    def forward(self, rr_windows: torch.Tensor) -> torch.Tensor:
+        """
+        rr_windows: [B, T, W] 
+        Returns:
+            c_seq: [B, T, context_dim]
+        """
+        
+        B, T, W = rr_windows.shape
+        z_list = []
+
+        for t in range(T):
+            z_t = self.encoder(rr_windows[:, t, :])  # [B, latent_dim]
+            z_list.append(z_t)
+
+        z_seq = torch.stack(z_list, dim=1)  # [B, T, latent_dim]
+        c_seq = self.context(z_seq)         # [B, T, context_dim]
+
+        return c_seq
+
+def get_loss_weights(epoch, total_epochs):
+    """
+    Gradually shifts focus from loss_1 (Horizon 4) to loss_4 (Horizon 16).
+    """
+    # Progressive factor from 0 to 1
+    alpha = epoch / total_epochs 
+    
+    # Near horizon starts strong (1.0) and decays
+    w1 = 1.2
+    # Mid horizon stays relatively stable
+    w2 = 1.0 
+    # Far horizon starts low (0.2) and becomes the priority (1.5)
+    w4 = 0.8
+    
+    return w1, w2, w4
+
+def training_step(
+    model, 
+    rr_windows: torch.Tensor, 
+    hrv_targets: torch.Tensor,
+    epoch,
+    total_epochs:int
+) -> torch.Tensor:
+    """
+    rr_windows: [B, T, W]  -> RR windows
+    hrv_targets : [B, T, num_metrics] -> HRV targets for different horizons
+    Returns:
+        loss: scalar tensor
+    """
+    w1, w2, w4 = get_loss_weights(epoch,total_epochs)
+    # Get context embeddings from model
+    c_seq = model(rr_windows)  # [B, T, context_dim]
+    last_context = c_seq[:, -1, :]  # [B, context_dim]
+    y_pred_1, y_pred_2, y_pred_4 = model.predictor(last_context)  # Each: [B, num_metrics]
+    y_true_1, y_true_2, y_true_4 = hrv_targets[:, 0, :], hrv_targets[:, 1, :], hrv_targets[:, 2, :]  # Each: [B, num_metrics]
+    loss_1 = F.mse_loss(y_pred_1, y_true_1)
+    loss_2 = F.mse_loss(y_pred_2, y_true_2)
+    loss_4 = F.mse_loss(y_pred_4, y_true_4)
+    total_loss = (w1 * loss_1) + (w2 * loss_2) + (w4 * loss_4)
+    return total_loss,loss_1,loss_2,loss_4
+
+def validation_step(model, dataloader, device):
+    model.eval()
+    val_loss = 0.0
+    val_loss_1 = 0.0
+    val_loss_2 = 0.0
+    val_loss_4 = 0.0
+    count = 0
+
+    with torch.no_grad():
+        for rr_windows, hrv_targets in dataloader:
+            rr_windows = rr_windows.to(device)  # [B, 1, W] if single-channel
+            # Move targets to device
+            hrv_targets = hrv_targets.to(device)
+
+            # Compute loss
+            loss,loss_1,loss_2,loss_4 = training_step(model, rr_windows, hrv_targets,epoch,EPOCHS)
+            val_loss += loss.item()
+            val_loss_1 += loss_1.item()
+            val_loss_2 += loss_2.item()
+            val_loss_4 += loss_4.item()
+
+            count += 1
+
+    return (val_loss / count,val_loss_1 / count,val_loss_2 / count,val_loss_4 / count) if count > 0 else (0.0,0.0,0.0,0.0)
+
+def compute_baseline_hazard(risk, time, event):
+    order = torch.argsort(time)
+    time = time[order]
+    event = event[order]
+    risk = risk[order]
+
+    unique_times = torch.unique(time[event == 1])
+
+    hazards = []
+    for t in unique_times:
+        d = ((time == t) & (event == 1)).sum()
+        risk_set = torch.exp(risk[time >= t]).sum()
+        hazards.append(d / risk_set)
+
+    hazards = torch.stack(hazards)
+    cumhaz = torch.cumsum(hazards, dim=0)
+
+    return unique_times, cumhaz
+
+def predict_median_survival(risk, times, baseline_cumhaz):
+    surv = torch.exp(-baseline_cumhaz * torch.exp(risk))
+
+    idx = torch.where(surv <= 0.5)[0]
+    if len(idx) == 0:
+        return times[-1]
+
+    return times[idx[0]]
+
+
+logger = getLogger(__name__)
+log_folder = os.path.join(os.getcwd(), 'Logs')
+os.makedirs(log_folder, exist_ok=True)
+log_path_file = os.path.join(log_folder, f'training_log_{time.strftime("%Y-%m-%d_%H-%M-%S")}.txt')
+file_handler = logging.FileHandler(log_path_file)
+file_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+logger.setLevel(logging.INFO)
+
+
+random.seed(42)
+torch.random.manual_seed(42)
+np.random.seed(42)
+
+load_dotenv()
+
+
+# Hyperparameters
+LR = 2e-4
+EPOCHS = 100
+LATENT_SIZE = 32
+CONTEXT_SIZE = 64
+NUMBER_OF_TARGETS_FOR_PREDICTION = 6
+NUMBER_OF_HEADS = 3
+WINDOW_SIZE = 200
+STRIDE = 20
+HORIZONS = [2,4,8]  # Predicting HRV differences at 2, 4, and 8 windows into the future
+SEQUENCE_LENGTH = 10
+VALIDATION_RATIO = 0.3
+BATCH_SIZE = 1024
+PREDICTION = "hrv difference"
+
+
+EXPORTPATH = os.path.join(os.getcwd(), 'Exports')
+os.makedirs(EXPORTPATH, exist_ok=True)
+
+wandb.login()
+
+# # Start a new wandb run to track this script.
+run = wandb.init(
+    # Set the wandb entity where your project will be logged (generally your team name).
+    entity="eml-labs",
+    # Set the wandb project where this run will be logged.
+    project="Prediction-PAF-Onset-with-ST-CoxNet",
+    # Track hyperparameters and run metadata.
+    config={
+        "learning_rate": LR,
+        "epochs": EPOCHS,
+        "latent_size": LATENT_SIZE,
+        "context_size": CONTEXT_SIZE,
+        "number_of_targets_for_prediction": NUMBER_OF_TARGETS_FOR_PREDICTION,
+        "number_of_heads": NUMBER_OF_HEADS,
+        "window_size": WINDOW_SIZE,
+        "stride": STRIDE,
+        "horizons": HORIZONS,
+        "sequence_length": SEQUENCE_LENGTH,
+        "validation_ratio": VALIDATION_RATIO,
+        "batch_size": BATCH_SIZE,
+        "prediction": PREDICTION,
+        "dataset": "IRIDA-AF",
+    },
+)
+
+dataset_path = os.path.join('/home','intellisense01','EML-Labs','datasets','Data-Explorer','processed_data_60min_nsr_5min_af')
+df = pd.read_csv(os.path.join(dataset_path,'200x20_extracted_rr_intervals.csv'))
+logger.info(f"Total records in dataset: {len(df)}")
+
+all_patients = np.sort(np.unique(df['patient_id'].values))
+logger.info(f"Total unique patients: {len(all_patients)}")
+
+np.random.shuffle(all_patients)
+
+val_count = max(1, int(len(all_patients) * VALIDATION_RATIO))
+
+val_patients = all_patients[:val_count]
+train_patients = all_patients[val_count:]
+logger.info(f"Training patients: {len(train_patients)}, Validation patients: {len(val_patients)}")
+
+train_dataset = RRSequenceDataset(dataset_path,'200x20_extracted_rr_intervals.csv',train_patients, WINDOW_SIZE, STRIDE, HORIZONS, SEQUENCE_LENGTH)
+rr_scaler, hrv_scaler = train_dataset.get_scalers()
+val_dataset = RRSequenceDataset(dataset_path,'200x20_extracted_rr_intervals.csv',val_patients, WINDOW_SIZE, STRIDE, HORIZONS, SEQUENCE_LENGTH,rr_scaler=rr_scaler, hrv_scaler=hrv_scaler)
+logger.info(f"Train samples: {len(train_dataset)}, Validation samples: {len(val_dataset)}")
+
+train_loader = DataLoader(
+    train_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True,num_workers=8,pin_memory=True,persistent_workers=True,prefetch_factor=4
+)
+
+val_loader = DataLoader(
+    val_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=False,num_workers=8,pin_memory=True,persistent_workers=True,prefetch_factor=4
+)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+logger.info(f"Using device: {device}")
+
+    
+# # Model & optimizer
+model = CPCPreModel(num_targets=NUMBER_OF_TARGETS_FOR_PREDICTION, latent_dim=LATENT_SIZE, context_dim=CONTEXT_SIZE,number_of_heads=NUMBER_OF_HEADS).to(device)
+optimizer = AdamW(model.parameters(), lr=LR)
+logger.info(f"Model initialized with {sum(p.numel() for p in model.parameters())} parameters")
+
+
+for epoch in tqdm(range(1, EPOCHS + 1), desc=f"Epochs", unit="epoch"):
+    model.train()
+    running_loss = 0.0
+    batch_count = 0
+    for rr_windows, hrv_targets in train_loader:
+        rr_windows = rr_windows.to(device)
+        hrv_targets = hrv_targets.to(device)
+        optimizer.zero_grad()
+        loss,loss_1,loss_2,loss_4 = training_step(model, rr_windows, hrv_targets,epoch,EPOCHS)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        batch_count += 1
+        
+    train_loss = running_loss / batch_count
+    val_loss,val_loss_1,val_loss_2,val_loss_4 = validation_step(model, val_loader, device)
+    run.log({
+        "CPC_epoch": epoch,
+        "CPC_train_loss": train_loss,
+        "CPC_train_loss_1": loss_1.item(),
+        "CPC_train_loss_2": loss_2.item(),
+        "CPC_train_loss_4": loss_4.item(),
+        "CPC_val_loss": val_loss,
+        "CPC_val_loss_1": val_loss_1,
+        "CPC_val_loss_2": val_loss_2,
+        "CPC_val_loss_4": val_loss_4
+    })
+    tqdm.write(f"Epoch {epoch:02d}: Train Loss = {train_loss:.6f} Validation Loss = {val_loss:.6f} 1 : {val_loss_1:.6f} 2 : {val_loss_2:.6f} 4 : {val_loss_4:.6f}")
+    logger.info(f"Epoch {epoch:02d}: Train Loss = {train_loss:.6f} Validation Loss = {val_loss:.6f} 1 : {val_loss_1:.6f} 2 : {val_loss_2:.6f} 4 : {val_loss_4:.6f}")
+
+
+torch.save(model.state_dict(), os.path.join(EXPORTPATH, f'cpc_pre_model_epoch_{EPOCHS}.pth'))
+
+artifact = wandb.Artifact(name=f'cpc_pre_model_epoch_{EPOCHS}', type='model')
+artifact.add_file(local_path=os.path.join(EXPORTPATH, f'cpc_pre_model_epoch_{EPOCHS}.pth'), name=f'cpc_pre_model_epoch_{EPOCHS}.pth')
+run.log_artifact(artifact)
+
+
+train_cox_dataset = RRSequenceCoxDataset(train_patients, dataset_path, '200x20_extracted_rr_intervals.csv', WINDOW_SIZE, STRIDE, SEQUENCE_LENGTH,rr_scaler=rr_scaler)
+validation_cox_dataset = RRSequenceCoxDataset(val_patients, dataset_path, '200x20_extracted_rr_intervals.csv', WINDOW_SIZE, STRIDE, SEQUENCE_LENGTH, rr_scaler=rr_scaler)
+logger.info(f"Cox Train samples: {len(train_cox_dataset)}, Cox Validation samples: {len(validation_cox_dataset)}")
+
+train_cox_loader = DataLoader(train_cox_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True,num_workers=8,pin_memory=True,persistent_workers=True,prefetch_factor=4)
+validation_cox_loader = DataLoader(validation_cox_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=False,num_workers=8,pin_memory=True,persistent_workers=True,prefetch_factor=4)
+logger.info(f"Cox Train batches: {len(train_cox_loader)}, Cox Validation batches: {len(validation_cox_loader)}")
+
+encoder = model.encoder
+context = model.context
+logger.info(f"Encoder parameters: {sum(p.numel() for p in encoder.parameters())}, Context parameters: {sum(p.numel() for p in context.parameters())}")
+
+cox_model = DeepSurvCox(encoder=encoder, context=context, context_dim=CONTEXT_SIZE).to(device)
+logger.info(f"Cox model initialized with {sum(p.numel() for p in cox_model.parameters())} parameters")
+
+cox_optimizer = AdamW(cox_model.parameters(), lr=LR)
+cox_loss_fn = DeepSurvLoss()
+c_index = CIndex()
+
+for epoch in tqdm(range(1, EPOCHS + 1), desc=f"Cox Epochs", unit="epoch"):
+    cox_model.train()
+    running_loss = 0.0
+    batch_count = 0
+    for rr_windows, time_to_event, event in train_cox_loader:
+        rr_windows = rr_windows.to(device)
+        time_to_event = time_to_event.to(device)
+        event = event.to(device)
+
+        cox_optimizer.zero_grad()
+        risk = cox_model(rr_windows)  # [B]
+        loss = cox_loss_fn(risk, time_to_event, event)
+        loss.backward()
+        cox_optimizer.step()
+
+        running_loss += loss.item()
+        batch_count += 1
+
+    
+    train_loss = running_loss / batch_count
+
+    train_risk = []
+    train_time = []
+    train_event = []
+
+    cox_model.eval()
+
+    with torch.no_grad():
+        for rr_windows, time_to_event, event in train_cox_loader:
+            rr_windows = rr_windows.to(device)
+
+            risk = cox_model(rr_windows)
+
+            train_risk.append(risk.cpu())
+            train_time.append(time_to_event)
+            train_event.append(event)
+
+    train_risk = torch.cat(train_risk)
+    train_time = torch.cat(train_time)
+    train_event = torch.cat(train_event)
+
+    times, baseline_cumhaz = compute_baseline_hazard(
+        train_risk,
+        train_time,
+        train_event
+    )
+
+    all_risk = []
+    all_time = []
+    all_event = []
+
+    pred_times = []
+    actual_times = []
+
+
+    for rr_windows, time_to_event, event in validation_cox_loader:
+        rr_windows = rr_windows.to(device)
+        time_to_event = time_to_event.to(device)
+        event = event.to(device)
+        all_time.append(time_to_event)
+        all_event.append(event)
+        cox_model.eval()
+        actual_times.append(time_to_event)
+        with torch.no_grad():
+            risk = cox_model(rr_windows).cpu()
+            for r in risk:
+                t = predict_median_survival(r, times, baseline_cumhaz)
+                pred_times.append(t)
+            all_risk.append(risk.cpu())
+
+    all_risk = torch.cat(all_risk)
+    all_time = torch.cat(all_time)
+    all_event = torch.cat(all_event)
+
+    fig = plt.figure()
+    plt.scatter(np.array(actual_times), np.array(pred_times), alpha=0.6)
+    max_t = max(actual_times.max(), pred_times.max())
+    plt.plot([0, max_t], [0, max_t], 'r--')
+    plt.xlabel("Actual Time-to-Event")
+    plt.ylabel("Predicted Time-to-Event")
+    plt.title(f"Epoch {epoch}")
+    plt.tight_layout()
+    
+    val_c_index = CIndex.calculate(all_risk, all_time, all_event)
+    run.log({
+        "Cox_epoch": epoch,
+        "Cox_train_loss": train_loss,
+        "Cox_val_c_index": val_c_index,
+        "prediction_plot": wandb.Image(fig)
+    })  
+    tqdm.write(f"Cox Epoch {epoch:02d}: Train Loss = {train_loss:.6f} Validation C-Index = {val_c_index:.6f}")
+    logger.info(f"Cox Epoch {epoch:02d}: Train Loss = {train_loss:.6f} Validation C-Index = {val_c_index:.6f}")
+
+cox_model_path = os.path.join(EXPORTPATH, f'cox_model_epoch_{EPOCHS}.pth')
+torch.save(cox_model.state_dict(), cox_model_path)
+
+cox_artifact = wandb.Artifact(name=f'cox_model_epoch_{EPOCHS}', type='model')
+cox_artifact.add_file(local_path=cox_model_path, name=f'cox_model_epoch_{EPOCHS}.pth')
+run.log_artifact(cox_artifact)
+
+logger.info("Training complete.")
+run.finish()

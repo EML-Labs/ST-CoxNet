@@ -13,3 +13,5 @@ wandb/
 *.pt
 *.png
 *.pth
+lib64
+Logs/
