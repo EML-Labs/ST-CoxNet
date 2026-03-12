@@ -23,3 +23,4 @@ class Encoder(nn.Module):
         h = self.encoder(x).squeeze(-1)
         z = self.proj(h)
         return z
+
