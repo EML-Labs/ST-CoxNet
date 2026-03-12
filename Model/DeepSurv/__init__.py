@@ -24,4 +24,4 @@ class DeepSurvCox(nn.Module):
         c_last = c_seq[:, -1, :]
         
         risk = self.cox_head(c_last).squeeze(-1)
-        return risk
+        return risk, c_seq, z_seq

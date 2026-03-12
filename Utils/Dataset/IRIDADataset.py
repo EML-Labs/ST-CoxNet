@@ -24,6 +24,10 @@ class RRSequenceDataset(Dataset):
         df = pd.read_csv(os.path.join(dataset_path, csv_file_name))
         df = df[df['patient_id'].isin(patient_list)]
         df['file_name'] = df['patient_id'].astype(str) + '_' + df['episode_id'].astype(str) + '_' + df['segment_id'].astype(str) + '.npy'
+        all_files = df['file_name'].tolist()
+        rr_data = dict()
+        for file_name in tqdm(all_files, desc="Preloading RR windows", unit="file"):
+            rr_data[file_name] = np.load(os.path.join(dataset_path, file_name))
         num_of_segments = [len(df[df['patient_id'] == patient]) for patient in patient_list]
         total_segments = sum(max(0, n - last_target_offset) for n in num_of_segments)
         pbar = tqdm(total=total_segments, desc="Processing patients", unit="segment")
@@ -34,7 +38,7 @@ class RRSequenceDataset(Dataset):
                 rr_windows = []
                 hrvs = []
                 for j in range(i, i + seq_len):
-                    rr_window = np.load(os.path.join(dataset_path, patient_df.iloc[j]['file_name']))
+                    rr_window = rr_data[patient_df.iloc[j]['file_name']]
                     rr_windows.append(rr_window)
 
                 for h in horizons:

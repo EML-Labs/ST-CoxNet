@@ -25,6 +25,7 @@ from tqdm import tqdm
 from Loss.DeepSurvLoss import DeepSurvLoss
 from Metric.CIndex import CIndex
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 
 from dotenv import load_dotenv
 
@@ -169,7 +170,8 @@ load_dotenv()
 
 
 # Hyperparameters
-LR = 2e-4
+CPC_LR = 2e-4
+COX_LR = 1e-3
 EPOCHS = 100
 LATENT_SIZE = 32
 CONTEXT_SIZE = 64
@@ -182,6 +184,7 @@ SEQUENCE_LENGTH = 10
 VALIDATION_RATIO = 0.3
 BATCH_SIZE = 1024
 PREDICTION = "hrv difference"
+NOTES = "Testing without Pre Training CPC model"
 
 
 EXPORTPATH = os.path.join(os.getcwd(), 'Exports')
@@ -197,7 +200,8 @@ run = wandb.init(
     project="Prediction-PAF-Onset-with-ST-CoxNet",
     # Track hyperparameters and run metadata.
     config={
-        "learning_rate": LR,
+        "cpc_learning_rate": CPC_LR,
+        "cox_learning_rate": COX_LR,
         "epochs": EPOCHS,
         "latent_size": LATENT_SIZE,
         "context_size": CONTEXT_SIZE,
@@ -210,6 +214,7 @@ run = wandb.init(
         "validation_ratio": VALIDATION_RATIO,
         "batch_size": BATCH_SIZE,
         "prediction": PREDICTION,
+        "notes": NOTES,
         "dataset": "IRIDA-AF",
     },
 )
@@ -248,7 +253,7 @@ logger.info(f"Using device: {device}")
     
 # # Model & optimizer
 model = CPCPreModel(num_targets=NUMBER_OF_TARGETS_FOR_PREDICTION, latent_dim=LATENT_SIZE, context_dim=CONTEXT_SIZE,number_of_heads=NUMBER_OF_HEADS).to(device)
-optimizer = AdamW(model.parameters(), lr=LR)
+optimizer = AdamW(model.parameters(), lr=CPC_LR)
 logger.info(f"Model initialized with {sum(p.numel() for p in model.parameters())} parameters")
 
 
@@ -291,8 +296,8 @@ artifact.add_file(local_path=os.path.join(EXPORTPATH, f'cpc_pre_model_epoch_{EPO
 run.log_artifact(artifact)
 
 
-train_cox_dataset = RRSequenceCoxDataset(train_patients, dataset_path, '200x20_extracted_rr_intervals.csv', WINDOW_SIZE, STRIDE, SEQUENCE_LENGTH,rr_scaler=rr_scaler)
-validation_cox_dataset = RRSequenceCoxDataset(val_patients, dataset_path, '200x20_extracted_rr_intervals.csv', WINDOW_SIZE, STRIDE, SEQUENCE_LENGTH, rr_scaler=rr_scaler)
+train_cox_dataset = RRSequenceCoxDataset(train_patients, dataset_path, '200x20_extracted_rr_intervals.csv', limit_time_to_event=0.5, seq_len=SEQUENCE_LENGTH, rr_scaler=rr_scaler)
+validation_cox_dataset = RRSequenceCoxDataset(val_patients, dataset_path, '200x20_extracted_rr_intervals.csv', limit_time_to_event=0.5, seq_len=SEQUENCE_LENGTH, rr_scaler=rr_scaler)
 logger.info(f"Cox Train samples: {len(train_cox_dataset)}, Cox Validation samples: {len(validation_cox_dataset)}")
 
 train_cox_loader = DataLoader(train_cox_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True,num_workers=8,pin_memory=True,persistent_workers=True,prefetch_factor=4)
@@ -306,7 +311,7 @@ logger.info(f"Encoder parameters: {sum(p.numel() for p in encoder.parameters())}
 cox_model = DeepSurvCox(encoder=encoder, context=context, context_dim=CONTEXT_SIZE).to(device)
 logger.info(f"Cox model initialized with {sum(p.numel() for p in cox_model.parameters())} parameters")
 
-cox_optimizer = AdamW(cox_model.parameters(), lr=LR)
+cox_optimizer = AdamW(cox_model.parameters(), lr=COX_LR)
 cox_loss_fn = DeepSurvLoss()
 c_index = CIndex()
 
@@ -320,7 +325,7 @@ for epoch in tqdm(range(1, EPOCHS + 1), desc=f"Cox Epochs", unit="epoch"):
         event = event.to(device)
 
         cox_optimizer.zero_grad()
-        risk = cox_model(rr_windows)  # [B]
+        risk,_,_ = cox_model(rr_windows)  # [B]
         loss = cox_loss_fn(risk, time_to_event, event)
         loss.backward()
         cox_optimizer.step()
@@ -341,7 +346,7 @@ for epoch in tqdm(range(1, EPOCHS + 1), desc=f"Cox Epochs", unit="epoch"):
         for rr_windows, time_to_event, event in train_cox_loader:
             rr_windows = rr_windows.to(device)
 
-            risk = cox_model(rr_windows)
+            risk,_,_ = cox_model(rr_windows)
 
             train_risk.append(risk.cpu())
             train_time.append(time_to_event)
@@ -364,6 +369,8 @@ for epoch in tqdm(range(1, EPOCHS + 1), desc=f"Cox Epochs", unit="epoch"):
     pred_times = []
     actual_times = []
 
+    encoder_embeddings = []
+    context_embeddings = []
 
     for rr_windows, time_to_event, event in validation_cox_loader:
         rr_windows = rr_windows.to(device)
@@ -374,7 +381,10 @@ for epoch in tqdm(range(1, EPOCHS + 1), desc=f"Cox Epochs", unit="epoch"):
         cox_model.eval()
         actual_times.append(time_to_event.cpu().tolist())
         with torch.no_grad():
-            risk = cox_model(rr_windows).cpu()
+            risk,c_seq,z_seq = cox_model(rr_windows)
+            risk = risk.cpu()
+            encoder_embeddings.append(z_seq[:,-1,:].cpu())
+            context_embeddings.append(c_seq[:,-1,:].cpu())
             local_pred_times = []
             for r in risk:
                 t = predict_median_survival(r, times, baseline_cumhaz)
@@ -386,15 +396,102 @@ for epoch in tqdm(range(1, EPOCHS + 1), desc=f"Cox Epochs", unit="epoch"):
     all_time = torch.cat(all_time)
     all_event = torch.cat(all_event)
 
-    fig = plt.figure()
-    plt.scatter(np.array(actual_times), np.array(pred_times), alpha=0.6)
+    encoder_embeddings = torch.cat(encoder_embeddings)
+    context_embeddings = torch.cat(context_embeddings)
+
+    time_np = all_time.cpu().numpy()
+    event_np = all_event.cpu().numpy()
+    encoder_embeddings_np = encoder_embeddings.cpu().numpy()
+    context_embeddings_np = context_embeddings.cpu().numpy()
+
+    pca_emb = PCA(n_components=2, random_state=42)
+    pca_cont = PCA(n_components=2, random_state=42)
+    context_embedding_2d = pca_cont.fit_transform(context_embeddings_np)
+    embedding_2d = pca_emb.fit_transform(encoder_embeddings_np)
+
+    fig = plt.figure(figsize=(12,12))
+    fig.suptitle(f"Cox Model Predictions at Epoch {epoch}", fontsize=16)
+    gs = fig.add_gridspec(3, 2)
+
+    # ---- Plot 1 : Scatter ----
+    ax1 = fig.add_subplot(gs[0,0])
+    ax1.scatter(actual_times, pred_times, alpha=0.3, s=8)
+
     max_t = max(np.max(actual_times), np.max(pred_times))
-    plt.plot([0, max_t], [0, max_t], 'r--')
-    plt.xlabel("Actual Time-to-Event")
-    plt.ylabel("Predicted Time-to-Event")
-    plt.title(f"Epoch {epoch}")
-    plt.tight_layout()
-    
+    ax1.plot([0, max_t], [0, max_t], 'r--', label="Perfect prediction")
+
+    ax1.set_xlabel("Actual Time-to-Event")
+    ax1.set_ylabel("Predicted Time-to-Event")
+    ax1.set_title(f"Prediction vs Actual")
+    ax1.legend()
+    ax1.grid(alpha=0.3)
+
+    # ---- Plot 2 : Hexbin Density ----
+    ax2 = fig.add_subplot(gs[0,1])
+    hb = ax2.hexbin(actual_times, pred_times, gridsize=50, cmap='Blues')
+    fig.colorbar(hb, ax=ax2, label="Density")
+
+    ax2.set_xlabel("Actual Time")
+    ax2.set_ylabel("Predicted Time")
+    ax2.set_title("Prediction Density")
+    ax2.grid(alpha=0.2)
+
+    # ---- Plot 3 : Risk Distribution (Full Width) ----
+    ax3 = fig.add_subplot(gs[1,:])
+
+    risk_np = all_risk.numpy()
+
+    ax3.hist(risk_np, bins=40, color="steelblue", alpha=0.75, edgecolor="black")
+
+    # Add statistics
+    mean_risk = np.mean(risk_np)
+    median_risk = np.median(risk_np)
+
+    ax3.axvline(mean_risk, color='red', linestyle='--', label=f"Mean = {mean_risk:.2f}")
+    ax3.axvline(median_risk, color='green', linestyle='--', label=f"Median = {median_risk:.2f}")
+
+    ax3.set_xlabel("Predicted Risk Score")
+    ax3.set_ylabel("Frequency")
+    ax3.set_title("Risk Score Distribution")
+    ax3.legend()
+    ax3.grid(alpha=0.3)
+
+    colors = np.where(event_np == 1, "red", "blue")
+    # ---- Plot 4 : Encoder t-SNE ----
+    ax4 = fig.add_subplot(gs[2,0])
+
+    scatter1 = ax4.scatter(
+        embedding_2d[:,0],
+        embedding_2d[:,1],
+        c=colors,
+        alpha=0.7,
+        s=8
+    )
+
+    ax4.set_title("Encoder Embedding t-SNE")
+    ax4.set_xlabel("t-SNE 1")
+    ax4.set_ylabel("t-SNE 2")
+
+
+    # ---- Plot 5 : Context t-SNE ----
+    ax5 = fig.add_subplot(gs[2,1])
+
+    scatter2 = ax5.scatter(
+        context_embedding_2d[:,0],
+        context_embedding_2d[:,1],
+        c=colors,
+        alpha=0.7,
+        s=8
+    )
+
+    ax5.set_title("Context Embedding t-SNE")
+    ax5.set_xlabel("t-SNE 1")
+    ax5.set_ylabel("t-SNE 2")
+
+    # fig.colorbar(scatter2, ax=ax5, label="Event")
+
+    plt.tight_layout(rect=[0,0,1,0.96])
+
     val_c_index = CIndex.calculate(all_risk, all_time, all_event)
     run.log({
         "Cox_epoch": epoch,
@@ -402,6 +499,7 @@ for epoch in tqdm(range(1, EPOCHS + 1), desc=f"Cox Epochs", unit="epoch"):
         "Cox_val_c_index": val_c_index,
         "prediction_plot": wandb.Image(fig)
     })
+
     plt.close(fig)  
     tqdm.write(f"Cox Epoch {epoch:02d}: Train Loss = {train_loss:.6f} Validation C-Index = {val_c_index:.6f}")
     logger.info(f"Cox Epoch {epoch:02d}: Train Loss = {train_loss:.6f} Validation C-Index = {val_c_index:.6f}")
